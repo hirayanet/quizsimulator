@@ -37,9 +37,7 @@ export default function CreateQuiz() {
     setFile(f);
 
     if (!isSupportedFile(f)) {
-      const msg = `Format file tidak didukung (${f.name} - ${f.type || 'unknown type'}). Gunakan PDF atau DOCX.`;
-      alert("Debug Error: " + msg);
-      setError(msg);
+      setError(`Format file tidak didukung (${f.name} - ${f.type || 'unknown type'}). Gunakan PDF atau DOCX.`);
       setFile(null);
       return;
     }
@@ -83,7 +81,6 @@ export default function CreateQuiz() {
       }, 600);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses file.";
-      alert("Debug Processing Error: " + msg);
       setError(msg);
       setFile(null);
       setProcessing(false);
@@ -101,10 +98,7 @@ export default function CreateQuiz() {
     const target = e.target as HTMLInputElement;
     const f = target.files?.[0];
     if (f) {
-      alert(`Debug: File dipilih. Nama: ${f.name}, Tipe: ${f.type}, Ukuran: ${f.size} bytes`);
       handleFile(f);
-    } else {
-      alert("Debug: Tidak ada file yang terdeteksi dari picker.");
     }
     target.value = ""; // Reset agar file yang sama bisa dipilih lagi jika sebelumnya gagal
   };
@@ -178,12 +172,6 @@ export default function CreateQuiz() {
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-5">
-          {/* DEBUG INPUT NATIVE - UNSTYLED & UNMANAGED */}
-          <div className="mb-4 rounded bg-red-100 p-4 border border-red-500">
-            <p className="mb-2 text-sm font-bold text-red-800">UJI COBA TERAKHIR: Tombol ini 100% kosong tanpa kode Javascript sama sekali.</p>
-            <input type="file" />
-          </div>
-
           {!processing && (
             <label
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}

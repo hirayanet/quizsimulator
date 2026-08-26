@@ -51,9 +51,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setLoading(false);
         } else if (event === "TOKEN_REFRESHED" && session?.user) {
-          // Token diperbarui — pastikan profil masih ada
+          // Token diperbarui — pastikan profil masih ada tanpa re-render berlebih
           const profile = await getUserById(session.user.id);
-          if (profile) setUser(profile);
+          if (profile) {
+            setUser((prev) => {
+              if (!prev) return profile;
+              if (JSON.stringify(prev) === JSON.stringify(profile)) return prev;
+              return profile;
+            });
+          }
         }
       },
     );
@@ -79,7 +85,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         displayName,
         avatarUrl,
       );
-      setUser(profile);
+      
+      setUser((prev) => {
+        if (!prev) return profile;
+        // Mencegah re-render yang tidak perlu jika data tidak berubah
+        if (JSON.stringify(prev) === JSON.stringify(profile)) return prev;
+        return profile;
+      });
     } catch (err) {
       console.error("[Auth] Gagal sync profil:", err);
       setUser(null);
