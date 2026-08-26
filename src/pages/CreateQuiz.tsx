@@ -171,11 +171,11 @@ export default function CreateQuiz() {
       <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-5">
           {!processing && (
-            <div
+            <label
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
-              className={`card-elevated relative cursor-pointer border-2 border-dashed p-8 text-center transition duration-300 ${
+              className={`card-elevated relative block cursor-pointer border-2 border-dashed p-8 text-center transition duration-300 ${
                 dragOver
                   ? "border-primary-400 bg-primary-50/70"
                   : "border-neutral-300/80 hover:-translate-y-1 hover:border-primary-300 hover:bg-white"
@@ -185,25 +185,24 @@ export default function CreateQuiz() {
                 <Upload size={28} />
               </div>
               <p className="mb-2 text-xl font-bold tracking-tight text-neutral-800">
-                Tarik file ke sini atau pilih dari perangkat
+                Tarik file ke sini atau tap untuk memilih
               </p>
               <p className="mx-auto max-w-lg text-sm leading-6 text-neutral-500">
                 Format yang tersedia: PDF, DOC, DOCX. Untuk hasil terbaik, gunakan dokumen yang benar-benar memiliki teks.
               </p>
-              <button className="btn-primary mt-5 pointer-events-none">
+              <div className="btn-primary mt-5 inline-flex pointer-events-none">
                 Pilih File
-              </button>
+              </div>
               
-              {/* Gunakan absolute input agar bisa diklik langsung di mobile (mengatasi bug onChange di iOS/Android) */}
+              {/* Native label behavior ensures file picker works perfectly on all mobile OS */}
               <input
                 ref={fileInputRef}
                 type="file"
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                accept=".pdf,.doc,.docx,.mp3,.wav,.m4a,.mp4,.mov"
+                className="hidden"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={handleInputChange}
-                title=""
               />
-            </div>
+            </label>
           )}
 
           {file && (
