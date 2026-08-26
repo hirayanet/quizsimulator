@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { Check, ExternalLink, Eye, EyeOff, Key, Sparkles, ArrowRight, Copy, CheckCheck, BookOpen } from "lucide-react";
-import { saveCohereKey } from "../lib/settingsStore";
+import { saveGroqKey } from "../lib/settingsStore";
 import type { User } from "../types";
 
 interface Props {
@@ -25,7 +25,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText("https://dashboard.cohere.com/api-keys");
+    navigator.clipboard.writeText("https://console.groq.com/keys");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -39,7 +39,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
     setSaving(true);
     setError(null);
     try {
-      saveCohereKey(user.id, trimmed);
+      saveGroqKey(user.id, trimmed);
       setStep(3);
     } catch {
       setError("Gagal menyimpan. Pastikan koneksi internet stabil.");
@@ -78,7 +78,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
               {[
                 "Soal quiz dibuat otomatis — bukan copy-paste",
                 "Pilihan jawaban rapi, konsisten & masuk akal",
-                "Gratis untuk penggunaan normal (free tier Cohere)",
+                "Gratis untuk penggunaan normal (free tier Groq)",
                 "Key Anda aman — hanya disimpan di perangkat ini",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-2.5">
@@ -122,12 +122,12 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
               {[
                 {
                   n: 1,
-                  text: "Buka Dashboard Cohere",
-                  sub: "dashboard.cohere.com/api-keys",
+                  text: "Buka Console Groq",
+                  sub: "console.groq.com/keys",
                   action: (
                     <div className="mt-2 flex gap-2">
                       <a
-                        href="https://dashboard.cohere.com/api-keys"
+                        href="https://console.groq.com/keys"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition"
@@ -150,8 +150,8 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
                 },
                 {
                   n: 3,
-                  text: "Copy Trial Key",
-                  sub: "Copy key yang muncul (Trial Key gratis)",
+                  text: "Buat API Key",
+                  sub: "Klik Create API Key dan Copy hasilnya (gsk_...)",
                 },
               ].map(({ n, text, sub, action }) => (
                 <div key={n} className="flex gap-3 rounded-2xl bg-neutral-50 p-3">
@@ -176,7 +176,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
                 <input
                   type={showKey ? "text" : "password"}
                   className="input pr-10 font-mono text-sm"
-                  placeholder="Paste Trial Key Cohere..."
+                  placeholder="gsk_..."
                   value={keyInput}
                   onChange={(e) => { setKeyInput(e.target.value); setError(null); }}
                   autoComplete="off"

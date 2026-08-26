@@ -93,14 +93,14 @@ export function savePrimaryApi(userId: string, api: PrimaryApi): void {
   localStorage.setItem(PRIMARY_API_PREFIX + userId, api);
 }
 
-/** Get Primary API preference, defaults to 'cohere' */
+/** Get Primary API preference, defaults to 'groq' */
 export function getPrimaryApi(userId: string): PrimaryApi {
   const val = localStorage.getItem(PRIMARY_API_PREFIX + userId);
   if (val === "groq") return "groq";
   if (val === "openrouter") return "openrouter";
   if (val === "cohere") return "cohere";
   if (val === "none") return "none";
-  return "cohere"; // Default fallback
+  return "groq"; // Default fallback
 }
 
 /** Save Cohere Key */

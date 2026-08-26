@@ -65,7 +65,7 @@ export default function QuizConfig() {
   const currentHasGroqKey = user ? hasGroqKey(user.id) : false;
   const currentHasOpenRouterKey = user ? hasOpenRouterKey(user.id) : false;
   const currentHasCohereKey = user ? hasCohereKey(user.id) : false;
-  const primaryApi = user ? getPrimaryApi(user.id) : "cohere";
+  const primaryApi = user ? getPrimaryApi(user.id) : "groq";
   
   // Hanya true jika API yang dipilih benar-benar tersedia
   const isAiActive = 

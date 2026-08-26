@@ -760,7 +760,7 @@ export async function generateQuiz(
   let aiUsed = false;
   let lastError: Error | null = null;
 
-  const primaryApi = userId ? getPrimaryApi(userId) : "cohere";
+  const primaryApi = userId ? getPrimaryApi(userId) : "groq";
   const groqApiKey = userId ? getGroqKey(userId) : null;
   const openRouterApiKey = userId ? getOpenRouterKey(userId) : null;
 
