@@ -15,8 +15,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user } = useUser();
 
-  // Hide bottom nav on quiz play and result pages for focus
-  const hideNav = location.pathname.startsWith("/quiz/play") || location.pathname.startsWith("/quiz/result");
+  // Hide bottom nav on quiz play and result pages for focus, or if user is not logged in
+  const hideNav = !user || location.pathname.startsWith("/quiz/play") || location.pathname.startsWith("/quiz/result");
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);

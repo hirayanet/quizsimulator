@@ -10,6 +10,7 @@ import {
   Plus,
   Sparkles,
   Target,
+  BookOpen,
 } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import StatCard from "../components/StatCard";
@@ -64,15 +65,11 @@ export default function Dashboard() {
         <div className="w-full max-w-md">
           <div className="mb-8 text-center">
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-primary-600 via-primary-500 to-accent-400 text-white shadow-glow animate-float-slow">
-              <Sparkles size={32} />
+              <BookOpen size={32} />
             </div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-primary-700 shadow-soft backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-primary-500" />
-              Powered by Gemini AI
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-neutral-900">AI Quiz Simulator</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-neutral-900">Quiz Simulator</h1>
             <p className="mt-3 text-sm leading-6 text-neutral-500">
-              Ubah materi pembelajaran menjadi quiz interaktif secara otomatis dengan kecerdasan buatan.
+              Ubah materi pembelajaran menjadi quiz interaktif secara otomatis.
             </p>
           </div>
 

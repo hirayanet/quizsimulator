@@ -772,7 +772,7 @@ export default function Profile() {
         <LogOut size={18} /> Keluar dari Akun Google
       </button>
 
-      <p className="mt-6 text-center text-xs text-neutral-300">AI Quiz Simulator v0.2</p>
+      <p className="mt-6 text-center text-xs text-neutral-300">Quiz Simulator v0.2</p>
       <div className="h-4" />
     </div>
   );
