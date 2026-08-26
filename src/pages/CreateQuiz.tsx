@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -97,16 +97,24 @@ export default function CreateQuiz() {
     if (f) handleFile(f);
   }, [handleFile]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement> | Event) => {
+    const target = e.target as HTMLInputElement;
+    const f = target.files?.[0];
     if (f) {
       alert(`Debug: File dipilih. Nama: ${f.name}, Tipe: ${f.type}, Ukuran: ${f.size} bytes`);
       handleFile(f);
     } else {
       alert("Debug: Tidak ada file yang terdeteksi dari picker.");
     }
-    e.target.value = ""; // Reset agar file yang sama bisa dipilih lagi jika sebelumnya gagal
+    target.value = ""; // Reset agar file yang sama bisa dipilih lagi jika sebelumnya gagal
   };
+
+  useEffect(() => {
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.addEventListener("change", handleInputChange);
+    return () => input.removeEventListener("change", handleInputChange);
+  }, [handleFile]);
 
   const fileIcon = file ? getFileKind(file) : null;
   const formats = [
@@ -199,7 +207,6 @@ export default function CreateQuiz() {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={handleInputChange}
               />
             </label>
