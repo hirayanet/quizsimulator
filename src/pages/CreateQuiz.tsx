@@ -37,7 +37,9 @@ export default function CreateQuiz() {
     setFile(f);
 
     if (!isSupportedFile(f)) {
-      setError(`Format file tidak didukung (${f.name} - ${f.type || 'unknown type'}). Gunakan PDF atau DOCX.`);
+      const msg = `Format file tidak didukung (${f.name} - ${f.type || 'unknown type'}). Gunakan PDF atau DOCX.`;
+      alert("Debug Error: " + msg);
+      setError(msg);
       setFile(null);
       return;
     }
@@ -81,6 +83,7 @@ export default function CreateQuiz() {
       }, 600);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat memproses file.";
+      alert("Debug Processing Error: " + msg);
       setError(msg);
       setFile(null);
       setProcessing(false);
@@ -97,7 +100,10 @@ export default function CreateQuiz() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
+      alert(`Debug: File dipilih. Nama: ${f.name}, Tipe: ${f.type}, Ukuran: ${f.size} bytes`);
       handleFile(f);
+    } else {
+      alert("Debug: Tidak ada file yang terdeteksi dari picker.");
     }
     e.target.value = ""; // Reset agar file yang sama bisa dipilih lagi jika sebelumnya gagal
   };
