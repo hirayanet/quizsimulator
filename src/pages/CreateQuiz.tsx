@@ -178,6 +178,12 @@ export default function CreateQuiz() {
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-5">
+          {/* DEBUG INPUT NATIVE - UNSTYLED */}
+          <div className="mb-4 rounded bg-red-100 p-4 border border-red-500">
+            <p className="mb-2 text-sm font-bold text-red-800">Coba upload menggunakan tombol abu-abu di bawah ini (Tombol Asli Bawaan Browser):</p>
+            <input type="file" onChange={handleInputChange} />
+          </div>
+
           {!processing && (
             <label
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
