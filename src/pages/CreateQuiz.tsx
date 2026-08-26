@@ -169,8 +169,7 @@ export default function CreateQuiz() {
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`card-elevated cursor-pointer border-2 border-dashed p-8 text-center transition duration-300 ${
+              className={`card-elevated relative cursor-pointer border-2 border-dashed p-8 text-center transition duration-300 ${
                 dragOver
                   ? "border-primary-400 bg-primary-50/70"
                   : "border-neutral-300/80 hover:-translate-y-1 hover:border-primary-300 hover:bg-white"
@@ -183,17 +182,20 @@ export default function CreateQuiz() {
                 Tarik file ke sini atau pilih dari perangkat
               </p>
               <p className="mx-auto max-w-lg text-sm leading-6 text-neutral-500">
-                Format yang tersedia: PDF, DOC, DOCX, MP3, WAV, M4A, MP4, dan MOV. Untuk hasil terbaik, gunakan dokumen yang benar-benar memiliki teks.
+                Format yang tersedia: PDF, DOC, DOCX. Untuk hasil terbaik, gunakan dokumen yang benar-benar memiliki teks.
               </p>
               <button className="btn-primary mt-5 pointer-events-none">
                 Pilih File
               </button>
+              
+              {/* Gunakan absolute input agar bisa diklik langsung di mobile (mengatasi bug onChange di iOS/Android) */}
               <input
                 ref={fileInputRef}
                 type="file"
-                className="hidden"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 accept=".pdf,.doc,.docx,.mp3,.wav,.m4a,.mp4,.mov"
                 onChange={handleInputChange}
+                title=""
               />
             </div>
           )}
