@@ -178,10 +178,10 @@ export default function CreateQuiz() {
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-5">
-          {/* DEBUG INPUT NATIVE - UNSTYLED */}
+          {/* DEBUG INPUT NATIVE - UNSTYLED & UNMANAGED */}
           <div className="mb-4 rounded bg-red-100 p-4 border border-red-500">
-            <p className="mb-2 text-sm font-bold text-red-800">Coba upload menggunakan tombol abu-abu di bawah ini (Tombol Asli Bawaan Browser):</p>
-            <input type="file" onChange={handleInputChange} />
+            <p className="mb-2 text-sm font-bold text-red-800">UJI COBA TERAKHIR: Tombol ini 100% kosong tanpa kode Javascript sama sekali.</p>
+            <input type="file" />
           </div>
 
           {!processing && (
