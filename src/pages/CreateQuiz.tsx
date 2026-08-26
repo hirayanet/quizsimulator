@@ -172,27 +172,6 @@ export default function CreateQuiz() {
 
       <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         <section className="space-y-5">
-          {/* DEBUG INPUT NATIVE - UNSTYLED & UNMANAGED */}
-          <div className="mb-4 rounded bg-red-100 p-4 border border-red-500" ref={(el) => {
-            if (el && !el.querySelector('input')) {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.onchange = (e) => {
-                const target = e.target as HTMLInputElement;
-                const f = target.files?.[0];
-                if (f) {
-                  alert(`Vanilla DOM berhasil! File: ${f.name} - Lanjut memproses...`);
-                  handleFile(f);
-                } else {
-                  alert(`Vanilla DOM: Tidak ada file`);
-                }
-              };
-              el.appendChild(input);
-            }
-          }}>
-            <p className="mb-2 text-sm font-bold text-red-800">UJI COBA NATIVE DOM: Jika tombol ini gagal, berarti Chrome Android/React Strict Mode nge-bug.</p>
-          </div>
-
           {!processing && (
             <label
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -217,13 +196,22 @@ export default function CreateQuiz() {
                 Pilih File
               </div>
               
-              {/* Native label behavior ensures file picker works perfectly on all mobile OS */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleInputChange}
-              />
+              {/* NATIVE DOM INPUT MOUNT: Menggunakan solusi Vanilla JS yang sudah terbukti berhasil */}
+              <div ref={(el) => {
+                if (el && !el.querySelector('input')) {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.className = 'hidden';
+                  input.accept = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                  input.onchange = (e) => {
+                    const target = e.target as HTMLInputElement;
+                    const f = target.files?.[0];
+                    if (f) handleFile(f);
+                    target.value = ""; // Reset agar file yang sama bisa dipilih lagi
+                  };
+                  el.appendChild(input);
+                }
+              }} />
             </label>
           )}
 
