@@ -368,17 +368,7 @@ export default function Profile() {
             Hanya API yang dipilih di bawah ini yang akan digunakan saat pembuatan soal. Pilih "Matikan AI" jika Anda ingin membuat soal biasa tanpa API Key (Rule-based).
           </p>
           <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
-             <button 
-               onClick={() => handleSetPrimary("gemini")}
-               disabled={!currentHasKey}
-               className={`flex-1 min-w-[120px] py-2 px-3 rounded-xl border text-sm font-semibold transition ${
-                 primaryApi === "gemini" ? "bg-primary-600 text-white border-primary-600 shadow-md" : 
-                 !currentHasKey ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed" :
-                 "bg-white text-primary-700 border-primary-200 hover:bg-primary-100"
-               }`}
-             >
-               Gemini
-             </button>
+
              <button 
                onClick={() => handleSetPrimary("groq")}
                disabled={!currentHasGroq}
@@ -425,96 +415,11 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Gemini API Key */}
-      <div className="card mb-5 p-5">
-        <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-neutral-700">
-          <Key size={18} className="text-primary-500" /> Gemini API Key
-        </h2>
-        <p className="mb-4 text-xs leading-relaxed text-neutral-500">
-          Key disimpan di database — otomatis tersedia di semua perangkat.{" "}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-semibold text-primary-600 hover:underline"
-          >
-            Dapatkan API key gratis <ExternalLink size={11} />
-          </a>
-        </p>
-
-        {currentHasKey ? (
-          <>
-            <div className="mb-4 flex items-center justify-between rounded-xl bg-success-50 border border-success-200 px-4 py-3">
-              <div>
-                <p className="text-xs font-semibold text-success-700">✅ API Key Tersimpan</p>
-                <p className="mt-0.5 font-mono text-xs text-success-600">{maskedKey}</p>
-              </div>
-              <button
-                onClick={handleDeleteKey}
-                className="ml-3 flex items-center gap-1 rounded-lg border border-error-200 bg-error-50 px-3 py-1.5 text-xs font-semibold text-error-600 hover:bg-error-100 transition"
-              >
-                <Trash2 size={13} /> Hapus
-              </button>
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs font-bold text-neutral-700 mb-2">Model Gemini (Opsional)</label>
-              {loadingGeminiModels ? (
-                <div className="text-xs text-neutral-500 flex items-center gap-1">
-                  <RefreshCw size={12} className="animate-spin" /> Memuat daftar model...
-                </div>
-              ) : (
-                <select 
-                  className="input w-full text-sm py-2" 
-                  value={selectedGeminiModel} 
-                  onChange={handleGeminiModelChange}
-                >
-                  <option value="auto">Auto-Discovery (Otomatis Pilih Terbaik)</option>
-                  {geminiModels.map(m => (
-                    <option key={m} value={m}>{m.replace("models/", "")}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="mb-4 rounded-xl bg-neutral-50 border border-neutral-200 px-4 py-3">
-            <p className="text-xs text-neutral-600">Belum ada API Key</p>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <div className="relative">
-            <input
-              type={showKey ? "text" : "password"}
-              className="input pr-10 font-mono text-sm"
-              placeholder="AIzaSy..."
-              value={keyInput}
-              onChange={(e) => { setKeyInput(e.target.value); setKeyError(null); }}
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-            >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          {keyError && <p className="text-xs text-error-600">{keyError}</p>}
-          {keySaved && <p className="text-xs font-semibold text-success-600">✅ Disimpan!</p>}
-          <button
-            onClick={handleSaveKey}
-            disabled={!keyInput.trim() || saving}
-            className="btn-primary w-full disabled:opacity-50"
-          >
-            {saving ? <><RefreshCw size={16} className="animate-spin" /> Menyimpan...</> : <><Check size={16} /> Simpan Gemini Key</>}
-          </button>
-        </div>
-      </div>
 
       {/* Groq API Key */}
       <div className="card mb-5 p-5">
         <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-neutral-700">
-          <Key size={18} className="text-amber-500" /> Groq API Key (Alternatif / Cadangan)
+          <Key size={18} className="text-amber-500" /> Groq API Key
         </h2>
         <p className="mb-4 text-xs leading-relaxed text-neutral-500">
           Key hanya disimpan di browser perangkat ini (Local Storage). Groq menawarkan inferensi yang sangat cepat.{" "}

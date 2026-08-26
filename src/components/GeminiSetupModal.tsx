@@ -1,14 +1,13 @@
 /**
  * GeminiSetupModal.tsx
  * --------------------
- * Muncul otomatis setelah login pertama kali jika user belum punya Gemini API key.
+ * Muncul otomatis setelah login pertama kali jika user belum punya API key.
  * Memandu user step-by-step untuk mendapatkan dan memasukkan API key mereka.
  */
 
 import { useState } from "react";
-import { Check, ExternalLink, Eye, EyeOff, Key, Sparkles, ArrowRight, Copy, CheckCheck } from "lucide-react";
-import { saveGeminiKeyToDB } from "../lib/db";
-import { cacheGeminiKey } from "../lib/geminiKeyStore";
+import { Check, ExternalLink, Eye, EyeOff, Key, Sparkles, ArrowRight, Copy, CheckCheck, BookOpen } from "lucide-react";
+import { saveCohereKey } from "../lib/settingsStore";
 import type { User } from "../types";
 
 interface Props {
@@ -26,7 +25,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText("https://aistudio.google.com/apikey");
+    navigator.clipboard.writeText("https://dashboard.cohere.com/api-keys");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -40,8 +39,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await saveGeminiKeyToDB(user.id, trimmed);
-      cacheGeminiKey(user.id, trimmed);
+      saveCohereKey(user.id, trimmed);
       setStep(3);
     } catch {
       setError("Gagal menyimpan. Pastikan koneksi internet stabil.");
@@ -63,25 +61,25 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
           <div className="rounded-[2rem] border border-white/70 bg-white/95 p-6 shadow-float">
             {/* Header */}
             <div className="mb-6 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-500 to-accent-400 text-white shadow-glow">
-                <Sparkles size={28} />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-600 via-primary-500 to-accent-400 text-white shadow-glow">
+                <BookOpen size={28} />
               </div>
               <h2 className="text-xl font-bold tracking-tight text-neutral-900">
                 Selamat datang, {user.username.split(" ")[0]}! 👋
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-neutral-500">
                 Untuk menghasilkan soal quiz yang akurat dan natural, aplikasi ini membutuhkan
-                <span className="font-semibold text-primary-600"> Gemini API Key</span> milik Anda.
+                <span className="font-semibold text-primary-600"> API Key</span> milik Anda.
               </p>
             </div>
 
             {/* Benefit list */}
             <div className="mb-6 space-y-3 rounded-2xl bg-gradient-to-br from-primary-50 to-accent-50 p-4">
               {[
-                "Soal dibuat AI — bukan copy-paste dari materi",
+                "Soal quiz dibuat otomatis — bukan copy-paste",
                 "Pilihan jawaban rapi, konsisten & masuk akal",
-                "Gratis untuk penggunaan normal (free tier Google)",
-                "Key Anda aman — tidak dibagikan ke siapapun",
+                "Gratis untuk penggunaan normal (free tier Cohere)",
+                "Key Anda aman — hanya disimpan di perangkat ini",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-2.5">
                   <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success-500 text-white">
@@ -114,7 +112,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
             <div className="mb-5">
               <div className="mb-1 flex items-center gap-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-xs font-bold text-white">2</div>
-                <h2 className="text-base font-bold text-neutral-800">Dapatkan Gemini API Key</h2>
+                <h2 className="text-base font-bold text-neutral-800">Dapatkan API Key</h2>
               </div>
               <p className="ml-8 text-xs text-neutral-500">Ikuti langkah berikut — hanya butuh ~2 menit</p>
             </div>
@@ -124,12 +122,12 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
               {[
                 {
                   n: 1,
-                  text: "Buka Google AI Studio",
-                  sub: "aistudio.google.com/apikey",
+                  text: "Buka Dashboard Cohere",
+                  sub: "dashboard.cohere.com/api-keys",
                   action: (
                     <div className="mt-2 flex gap-2">
                       <a
-                        href="https://aistudio.google.com/apikey"
+                        href="https://dashboard.cohere.com/api-keys"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition"
@@ -147,13 +145,13 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
                 },
                 {
                   n: 2,
-                  text: "Login dengan akun Google",
-                  sub: "Gunakan akun Gmail yang sama",
+                  text: "Login atau Daftar akun",
+                  sub: "Gunakan akun Google atau email Anda",
                 },
                 {
                   n: 3,
-                  text: "Klik \"Create API key\"",
-                  sub: "Copy key yang muncul (dimulai dengan AIza...)",
+                  text: "Copy Trial Key",
+                  sub: "Copy key yang muncul (Trial Key gratis)",
                 },
               ].map(({ n, text, sub, action }) => (
                 <div key={n} className="flex gap-3 rounded-2xl bg-neutral-50 p-3">
@@ -178,7 +176,7 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
                 <input
                   type={showKey ? "text" : "password"}
                   className="input pr-10 font-mono text-sm"
-                  placeholder="AIzaSy..."
+                  placeholder="Paste Trial Key Cohere..."
                   value={keyInput}
                   onChange={(e) => { setKeyInput(e.target.value); setError(null); }}
                   autoComplete="off"
@@ -225,11 +223,10 @@ export default function GeminiSetupModal({ user, onComplete, onSkip }: Props) {
             </div>
             <h2 className="text-xl font-bold text-neutral-900">Siap digunakan! 🎉</h2>
             <p className="mt-2 text-sm leading-relaxed text-neutral-500">
-              Gemini API Key berhasil disimpan. Sekarang quiz Anda akan dibuat dengan AI
-              yang jauh lebih cerdas dan natural.
+              API Key berhasil disimpan. Sekarang quiz Anda akan dibuat secara cerdas dan otomatis.
             </p>
             <div className="mt-6 rounded-2xl bg-success-50 border border-success-100 p-3 text-xs text-success-700">
-              ✅ Key tersimpan di database — otomatis tersedia di semua perangkat Anda
+              ✅ Key tersimpan dengan aman di browser perangkat ini
             </div>
             <button
               onClick={onComplete}

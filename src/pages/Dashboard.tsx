@@ -18,8 +18,7 @@ import EmptyState from "../components/EmptyState";
 import GeminiSetupModal from "../components/GeminiSetupModal";
 import { getUserStats, type UserStats } from "../lib/db";
 import { signInWithGoogle } from "../lib/supabase";
-import { hasGeminiKey } from "../lib/geminiKeyStore";
-
+import { hasCohereKey, hasGroqKey, hasOpenRouterKey } from "../lib/settingsStore";
 
 export default function Dashboard() {
   const { user, loading, refreshUser } = useUser();
@@ -32,8 +31,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (user) {
       getUserStats(user.id).then(setStats).catch(() => setStats(null));
-      // Tampilkan onboarding jika belum ada Gemini API key
-      if (!hasGeminiKey(user.id, user.gemini_api_key)) {
+      // Tampilkan onboarding jika belum ada satupun API key
+      const hasAnyKey = hasCohereKey(user.id) || hasGroqKey(user.id) || hasOpenRouterKey(user.id);
+      if (!hasAnyKey) {
         setShowSetup(true);
       }
     }
@@ -132,7 +132,7 @@ export default function Dashboard() {
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <div className="badge-soft mb-3">
-            <Sparkles size={14} />
+            <BookOpen size={14} />
             Dashboard belajar
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Halo, {user.username}!</h1>
