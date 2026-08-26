@@ -37,7 +37,7 @@ export default function CreateQuiz() {
     setFile(f);
 
     if (!isSupportedFile(f)) {
-      setError("Format file tidak didukung. Gunakan PDF, DOC, DOCX, MP3, WAV, M4A, MP4, atau MOV.");
+      setError(`Format file tidak didukung (${f.name} - ${f.type || 'unknown type'}). Gunakan PDF atau DOCX.`);
       setFile(null);
       return;
     }
@@ -96,7 +96,10 @@ export default function CreateQuiz() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) handleFile(f);
+    if (f) {
+      handleFile(f);
+    }
+    e.target.value = ""; // Reset agar file yang sama bisa dipilih lagi jika sebelumnya gagal
   };
 
   const fileIcon = file ? getFileKind(file) : null;
