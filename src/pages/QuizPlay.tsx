@@ -258,9 +258,6 @@ export default function QuizPlay() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-primary-500 text-xs font-bold text-white shadow-glow">
               {currentIdx + 1}
             </span>
-            <span className="rounded-full bg-neutral-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-              {currentQuestion.difficulty}
-            </span>
           </div>
 
           <p className="mb-6 whitespace-pre-line text-lg font-medium leading-relaxed text-neutral-800">

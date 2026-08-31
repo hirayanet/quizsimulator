@@ -269,8 +269,8 @@ export async function generateQuizWithCohere(
   
   const summary = await summarizeMaterialCohere(materialText, apiKey, userModel);
   const prompt = buildPrompt(summary, config, targetCount);
-  // Optimasi: max_tokens adaptif — lebih kecil untuk materi pendek
-  const adaptiveMaxTokens = materialText.length < 3000 ? 1200 : 2000;
+  // Alokasikan token yang cukup besar berdasarkan jumlah soal yang diminta (minimal 2500)
+  const adaptiveMaxTokens = Math.max(2500, targetCount * 250);
   const rawText = await callCohereAPI(prompt, apiKey, adaptiveMaxTokens, userModel, true);
   
   const rawQuestions = parseCohereResponse(rawText);

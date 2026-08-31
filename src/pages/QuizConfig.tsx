@@ -21,20 +21,6 @@ const QUESTION_OPTIONS = [
   { value: -1, label: "Custom" },
 ];
 
-const OPTION_COUNTS = [
-  { value: 2, label: "2 (A-B)" },
-  { value: 3, label: "3 (A-C)" },
-  { value: 4, label: "4 (A-D)" },
-  { value: 5, label: "5 (A-E)" },
-];
-
-const DIFFICULTIES: { value: Difficulty; label: string }[] = [
-  { value: "mudah", label: "Mudah" },
-  { value: "sedang", label: "Sedang" },
-  { value: "sulit", label: "Sulit" },
-  { value: "campuran", label: "Campuran" },
-];
-
 export default function QuizConfig() {
   const { materialId } = useParams<{ materialId: string }>();
   const { user } = useUser();
@@ -202,12 +188,7 @@ export default function QuizConfig() {
           <div className="space-y-3">
             <SummaryRow label="Materi" value={material.filename} />
             <SummaryRow label="Jumlah soal" value={`${totalQuestions} soal`} />
-            <SummaryRow label="Pilihan jawaban" value={`${config.numberOfOptions} (${"ABCDE".slice(0, config.numberOfOptions)})`} />
-            <SummaryRow label="Tingkat kesulitan" value={DIFFICULTIES.find((d) => d.value === config.difficulty)?.label || ""} />
             <SummaryRow label="Gaya soal" value={config.styleMode === "custom" ? "Contoh soal saya" : "Default"} />
-            <SummaryRow label="Mode" value={config.quizMode === "sama" ? "Soal Sama" : "Soal Berbeda"} />
-            <SummaryRow label="Acak soal" value={config.shuffleQuestions ? "ON" : "OFF"} />
-            <SummaryRow label="Acak jawaban" value={config.shuffleOptions ? "ON" : "OFF"} />
           </div>
         </div>
 
@@ -293,26 +274,8 @@ export default function QuizConfig() {
         )}
       </Section>
 
-      {/* B. Jumlah Pilihan Jawaban */}
-      <Section title="Jumlah Pilihan Jawaban" badge="B">
-        <OptionSelector
-          options={OPTION_COUNTS}
-          value={config.numberOfOptions}
-          onChange={(v) => updateConfig({ numberOfOptions: v as number })}
-        />
-      </Section>
-
-      {/* C. Tingkat Kesulitan */}
-      <Section title="Tingkat Kesulitan" badge="C">
-        <OptionSelector
-          options={DIFFICULTIES}
-          value={config.difficulty}
-          onChange={(v) => updateConfig({ difficulty: v as Difficulty })}
-        />
-      </Section>
-
       {/* D. Gaya Soal */}
-      <Section title="Gaya Soal (Opsional)" badge="D">
+      <Section title="Gaya Soal (Opsional)" badge="B">
         <div className="flex gap-2">
           <button
             onClick={() => updateConfig({ styleMode: "default" as StyleMode })}
@@ -349,59 +312,6 @@ export default function QuizConfig() {
             </p>
           </>
         )}
-      </Section>
-
-      {/* E. Mode Quiz */}
-      <Section title="Mode Quiz" badge="E">
-        <div className="flex gap-2">
-          <button
-            onClick={() => updateConfig({ quizMode: "sama" as QuizMode })}
-            className={`flex-1 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-              config.quizMode === "sama"
-                ? "border-primary-500 bg-primary-50 text-primary-700 ring-1 ring-primary-200"
-                : "border-neutral-200 bg-white text-neutral-600"
-            }`}
-          >
-            Soal Sama
-          </button>
-          <button
-            onClick={() => updateConfig({ quizMode: "baru" as QuizMode })}
-            className={`flex-1 rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-              config.quizMode === "baru"
-                ? "border-primary-500 bg-primary-50 text-primary-700 ring-1 ring-primary-200"
-                : "border-neutral-200 bg-white text-neutral-600"
-            }`}
-          >
-            Soal Berbeda
-          </button>
-        </div>
-        <p className="helper">
-          {config.quizMode === "sama"
-            ? "Menggunakan pertanyaan yang sama persis dari quiz sebelumnya."
-            : "Generate pertanyaan baru berdasarkan materi yang sama, menghindari soal duplikat."}
-        </p>
-        {config.quizMode === "sama" && existingQuestions.length === 0 && (
-          <p className="helper text-warning-600">Belum ada soal tersimpan untuk materi ini. Mode "Soal Sama" akan membuat soal baru.</p>
-        )}
-      </Section>
-
-      {/* F & G. Toggles */}
-      <Section title="Pengaturan Tambahan" badge="F/G">
-        <div className="space-y-4">
-          <Toggle
-            label="Acak Urutan Soal"
-            description="Soal akan ditampilkan dalam urutan acak"
-            checked={config.shuffleQuestions}
-            onChange={(v) => updateConfig({ shuffleQuestions: v })}
-          />
-          <div className="border-t border-neutral-100" />
-          <Toggle
-            label="Acak Pilihan Jawaban"
-            description="Posisi pilihan jawaban diacak setiap soal"
-            checked={config.shuffleOptions}
-            onChange={(v) => updateConfig({ shuffleOptions: v })}
-          />
-        </div>
       </Section>
 
       {genError && (

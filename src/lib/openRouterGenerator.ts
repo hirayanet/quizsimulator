@@ -318,9 +318,8 @@ export async function generateQuizWithOpenRouter(
   
   const summary = await summarizeMaterialOpenRouter(materialText, apiKey, userModel);
   const prompt = buildPrompt(summary, config, targetCount);
-  // Optimasi: max_tokens adaptif — lebih kecil untuk materi pendek
-  // Materi <3000 char biasanya butuh ~1200 tokens untuk 10 soal
-  const adaptiveMaxTokens = materialText.length < 3000 ? 1200 : 2000;
+  // Alokasikan token yang cukup besar berdasarkan jumlah soal yang diminta (minimal 2500)
+  const adaptiveMaxTokens = Math.max(2500, targetCount * 250);
   const rawText = await callOpenRouterAPI(prompt, apiKey, adaptiveMaxTokens, userModel, true);
   
   const rawQuestions = parseOpenRouterResponse(rawText);
