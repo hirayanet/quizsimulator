@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useUser } from "./context/UserContext";
+import { ToastProvider } from "./context/ToastContext";
 import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import CreateQuiz from "./pages/CreateQuiz";
@@ -28,21 +29,23 @@ function Protected({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/materials" element={<Protected><Materials /></Protected>} />
-        <Route path="/history" element={<Protected><History /></Protected>} />
-        <Route path="/history/:quizId" element={<Protected><HistoryDetail /></Protected>} />
-        <Route path="/statistics" element={<Protected><Statistics /></Protected>} />
-        <Route path="/profile" element={<Protected><Profile /></Protected>} />
-        <Route path="/create" element={<Protected><CreateQuiz /></Protected>} />
-        <Route path="/quiz/config/:materialId" element={<Protected><QuizConfig /></Protected>} />
-        <Route path="/quiz/play/:quizId" element={<Protected><QuizPlay /></Protected>} />
-        <Route path="/quiz/result/:quizId" element={<Protected><QuizResult /></Protected>} />
-        <Route path="/quiz/review/:quizId" element={<Protected><QuizReview /></Protected>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <ToastProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/materials" element={<Protected><Materials /></Protected>} />
+          <Route path="/history" element={<Protected><History /></Protected>} />
+          <Route path="/history/:quizId" element={<Protected><HistoryDetail /></Protected>} />
+          <Route path="/statistics" element={<Protected><Statistics /></Protected>} />
+          <Route path="/profile" element={<Protected><Profile /></Protected>} />
+          <Route path="/create" element={<Protected><CreateQuiz /></Protected>} />
+          <Route path="/quiz/config/:materialId" element={<Protected><QuizConfig /></Protected>} />
+          <Route path="/quiz/play/:quizId" element={<Protected><QuizPlay /></Protected>} />
+          <Route path="/quiz/result/:quizId" element={<Protected><QuizResult /></Protected>} />
+          <Route path="/quiz/review/:quizId" element={<Protected><QuizReview /></Protected>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </ToastProvider>
   );
 }

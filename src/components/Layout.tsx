@@ -26,7 +26,9 @@ export default function Layout() {
       <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-72 bg-[radial-gradient(circle_at_top,rgba(31,116,240,0.14),transparent_62%)]" />
 
       <div className={hideNav ? "" : "lg:pl-72"}>
-        <Outlet />
+        <div className="safe-top pb-24 lg:pb-0">
+          <Outlet />
+        </div>
         {!hideNav && <div className="h-24 lg:hidden" />}
       </div>
 

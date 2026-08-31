@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, ArrowLeft, Trophy, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { getQuizById, getQuestionsByQuiz, saveAnswers, updateQuizResults, incrementMaterialQuizCount } from "../lib/db";
 import type { Quiz, Question } from "../types";
 import { shuffle, formatDuration } from "../lib/utils";
 import ProgressBar from "../components/ProgressBar";
+import { useHaptic } from "../hooks/useHaptic";
 
 /**
  * Final cleanup for single letter artifacts - last line of defense
@@ -71,6 +72,7 @@ const LETTERS = "ABCDE";
 export default function QuizPlay() {
   const { quizId } = useParams<{ quizId: string }>();
   const navigate = useNavigate();
+  const { light, medium, success, error: errorHaptic } = useHaptic();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [rawQuestions, setRawQuestions] = useState<Question[]>([]);
@@ -126,21 +128,24 @@ export default function QuizPlay() {
   const currentQuestion = questions[currentIdx];
   const answeredCount = Object.keys(answers).length;
 
-  const handleSelect = (idx: number) => {
+  const handleSelect = useCallback((idx: number) => {
     setAnswers((prev) => ({ ...prev, [currentIdx]: idx }));
-  };
+    light();
+  }, [currentIdx, light]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIdx + 1 < total) {
       setCurrentIdx((i) => i + 1);
+      light();
     }
-  };
+  }, [currentIdx, total, light]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentIdx > 0) {
       setCurrentIdx((i) => i - 1);
+      light();
     }
-  };
+  }, [currentIdx, light]);
 
   const handleSubmit = async () => {
     const durationSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -168,6 +173,15 @@ export default function QuizPlay() {
         })),
       );
       await incrementMaterialQuizCount(quiz.material_id);
+    }
+
+    // Haptic feedback based on result
+    if (correct === total) {
+      success();
+    } else if (correct === 0) {
+      errorHaptic();
+    } else {
+      medium();
     }
 
     navigate(`/quiz/result/${quizId}`);
@@ -201,7 +215,7 @@ export default function QuizPlay() {
       {/* Top bar */}
       <div className="sticky top-0 z-20 border-b border-white/70 bg-white/85 shadow-soft backdrop-blur-xl">
         <div className="mx-auto max-w-3xl px-4 py-3 sm:px-6">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -218,7 +232,7 @@ export default function QuizPlay() {
                 SOAL {currentIdx + 1} DARI {total}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1.5">
                 <Clock size={14} className="text-neutral-400" />
                 <span className="text-xs font-semibold text-neutral-600">
@@ -259,7 +273,7 @@ export default function QuizPlay() {
               const isSelected = selectedAnswer === idx;
               let style = "border-neutral-200/80 bg-white/90 hover:-translate-y-0.5 hover:border-primary-300 hover:bg-primary-50/40 hover:shadow-soft";
               let icon = (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-sm font-bold text-neutral-500 transition-colors">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-base font-bold text-neutral-500 transition-colors">
                   {LETTERS[idx]}
                 </span>
               );
@@ -267,7 +281,7 @@ export default function QuizPlay() {
               if (isSelected) {
                 style = "border-primary-400 bg-primary-50 ring-1 ring-primary-200";
                 icon = (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-primary-500 text-sm font-bold text-white shadow-glow">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-primary-500 text-base font-bold text-white shadow-glow">
                     {LETTERS[idx]}
                   </span>
                 );
@@ -277,10 +291,10 @@ export default function QuizPlay() {
                 <button
                   key={idx}
                   onClick={() => handleSelect(idx)}
-                  className={`flex w-full items-center gap-3.5 rounded-2xl border-2 p-4 text-left transition duration-300 active:scale-[0.99] ${style}`}
+                  className={`flex w-full min-h-[56px] items-center gap-4 rounded-2xl border-2 px-4 py-3.5 text-left transition duration-300 active:scale-[0.99] ${style}`}
                 >
                   {icon}
-                  <span className="flex-1 text-sm font-medium leading-6 text-neutral-700">{finalCleanupOption(opt)}</span>
+                  <span className="flex-1 text-base font-medium leading-6 text-neutral-700">{finalCleanupOption(opt)}</span>
                 </button>
               );
             })}
@@ -298,19 +312,21 @@ export default function QuizPlay() {
             <div className="w-[120px]" />
           )}
 
-          <div className="flex flex-1 flex-wrap justify-center gap-1.5">
+          <div className="flex flex-1 flex-wrap justify-center gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
             {questions.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentIdx(idx)}
-                className={`h-2.5 rounded-full transition-all duration-300 ${
+                className={`h-8 min-w-[32px] rounded-full transition-all duration-300 flex items-center justify-center text-[11px] font-semibold ${
                   idx === currentIdx
-                    ? "w-7 bg-gradient-to-r from-primary-600 to-primary-500"
+                    ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white px-3"
                     : answers[idx] !== undefined
-                      ? "w-2.5 bg-primary-300"
-                      : "w-2.5 bg-neutral-200"
+                      ? "bg-primary-300 text-primary-700 px-2.5"
+                      : "bg-neutral-200 text-neutral-400 px-2.5"
                 }`}
-              />
+              >
+                {idx + 1}
+              </button>
             ))}
           </div>
 
