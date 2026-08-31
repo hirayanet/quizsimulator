@@ -130,14 +130,14 @@ export default function CreateQuiz() {
       <section className="space-y-5">
         {!file ? (
           // Empty state - drag & drop zone
-          <label
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={(e) => {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }}
+            onClick={() => fileInputRef.current?.click()}
             className={`card-elevated relative block cursor-pointer border-2 border-dashed p-10 text-center transition duration-300 ${
               dragOver
                 ? "border-primary-400 bg-primary-50/70 scale-[1.01] shadow-glow"
@@ -154,16 +154,16 @@ export default function CreateQuiz() {
               PDF, DOC, DOCX · Maks 50 MB
             </p>
 
-            {/* Hidden file input — sr-only ensures mobile browsers can reliably open the file picker via ref.click() */}
+            {/* Hidden file input — display:none is the most reliable way to hide on all mobile browsers while keeping ref.click() functional */}
             <input
               ref={fileInputRef}
               type="file"
-              className="sr-only"
+              style={{ display: "none" }}
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleInputChange}
               aria-label="Pilih file PDF atau DOCX"
             />
-          </label>
+          </div>
         ) : (
           // File selected - show progress
           <div className="card-elevated animate-fade-in p-6 space-y-5">
