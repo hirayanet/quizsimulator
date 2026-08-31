@@ -299,27 +299,19 @@ export default function QuizPlay() {
         </div>
 
         {/* Navigation */}
-        <div className="mt-5 flex items-center gap-3">
-          {currentIdx > 0 ? (
-            <button onClick={handlePrev} className="btn-secondary !px-4">
-              <ArrowLeft size={18} />
-              Sebelumnya
-            </button>
-          ) : (
-            <div className="w-[120px]" />
-          )}
-
-          <div className="flex flex-1 flex-wrap justify-center gap-1.5 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
+        <div className="mt-6 flex flex-col gap-5">
+          {/* Indikator Angka Menyamping (Horizontal Scroll) */}
+          <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto pb-2 scrollbar-hide px-1">
             {questions.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentIdx(idx)}
-                className={`h-8 min-w-[32px] rounded-full transition-all duration-300 flex items-center justify-center text-[11px] font-semibold ${
+                className={`shrink-0 h-9 min-w-[36px] rounded-full transition-all duration-300 flex items-center justify-center text-[13px] font-semibold ${
                   idx === currentIdx
-                    ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white px-3"
+                    ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white px-3 shadow-md"
                     : answers[idx] !== undefined
-                      ? "bg-primary-300 text-primary-700 px-2.5"
-                      : "bg-neutral-200 text-neutral-400 px-2.5"
+                      ? "bg-primary-200 text-primary-800 px-3"
+                      : "bg-neutral-200/80 text-neutral-500 hover:bg-neutral-300 px-3"
                 }`}
               >
                 {idx + 1}
@@ -327,21 +319,33 @@ export default function QuizPlay() {
             ))}
           </div>
 
-          {isLastQuestion ? (
-            <button
-              onClick={handleSubmit}
-              disabled={answeredCount < total}
-              className="btn-primary !px-4"
-            >
-              {answeredCount < total ? `${answeredCount}/${total}` : "Selesai"}
-              <ArrowRight size={18} />
-            </button>
-          ) : (
-            <button onClick={handleNext} className="btn-primary !px-4">
-              Berikutnya
-              <ArrowRight size={18} />
-            </button>
-          )}
+          {/* Tombol Sebelumnya & Berikutnya */}
+          <div className="flex items-center justify-between gap-3">
+            {currentIdx > 0 ? (
+              <button onClick={handlePrev} className="btn-secondary flex-1 justify-center">
+                <ArrowLeft size={18} className="mr-1" />
+                Sebelumnnya
+              </button>
+            ) : (
+              <div className="flex-1" />
+            )}
+
+            {isLastQuestion ? (
+              <button
+                onClick={handleSubmit}
+                disabled={answeredCount < total}
+                className="btn-primary flex-1 justify-center"
+              >
+                {answeredCount < total ? `${answeredCount}/${total}` : "Selesai"}
+                <ArrowRight size={18} className="ml-1" />
+              </button>
+            ) : (
+              <button onClick={handleNext} className="btn-primary flex-1 justify-center">
+                Berikutnya
+                <ArrowRight size={18} className="ml-1" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Submit hint on last question */}
