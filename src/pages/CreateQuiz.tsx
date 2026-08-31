@@ -130,14 +130,10 @@ export default function CreateQuiz() {
       <section className="space-y-5">
         {!file ? (
           // Empty state - drag & drop zone
-          <div
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
+          <label
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
             className={`card-elevated relative block cursor-pointer border-2 border-dashed p-10 text-center transition duration-300 ${
               dragOver
                 ? "border-primary-400 bg-primary-50/70 scale-[1.01] shadow-glow"
@@ -154,16 +150,24 @@ export default function CreateQuiz() {
               PDF, DOC, DOCX · Maks 50 MB
             </p>
 
-            {/* Hidden file input — display:none is the most reliable way to hide on all mobile browsers while keeping ref.click() functional */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              style={{ display: "none" }}
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={handleInputChange}
-              aria-label="Pilih file PDF atau DOCX"
-            />
-          </div>
+            {/* NATIVE DOM INPUT MOUNT: Mengembalikan solusi Vanilla JS yang terhapus. Ini WAJIB untuk Chrome Android / WebViews! */}
+            <div ref={(el) => {
+              if (el && !el.querySelector('input')) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.className = 'hidden';
+                input.style.display = 'none';
+                input.accept = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                input.onchange = (e) => {
+                  const target = e.target as HTMLInputElement;
+                  const f = target.files?.[0];
+                  if (f) handleFile(f);
+                  target.value = ""; // Reset agar file yang sama bisa dipilih lagi
+                };
+                el.appendChild(input);
+              }
+            }} />
+          </label>
         ) : (
           // File selected - show progress
           <div className="card-elevated animate-fade-in p-6 space-y-5">
