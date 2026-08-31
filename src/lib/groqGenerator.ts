@@ -189,9 +189,10 @@ export async function summarizeMaterialGroq(
   apiKey: string,
   userModel?: string | null
 ): Promise<string> {
-  // Jika materi pendek, skip summarization untuk kecepatan
-  if (materialText.length < 5000) {
-    console.log("[Groq] Material is short enough, skipping summarization.");
+  // Optimasi: untuk materi pendek, langsung pakai tanpa AI summarization
+  // (hemat 1 round-trip + lebih cepat)
+  if (materialText.length < 3000) {
+    console.log("[Groq] Material is short, skipping summarization.");
     return materialText;
   }
 
@@ -376,7 +377,10 @@ export async function generateQuizWithGroq(
   
   const summary = await summarizeMaterialGroq(materialText, apiKey, userModel);
   const prompt = buildPrompt(summary, config, targetCount);
-  const rawText = await callGroqAPI(prompt, apiKey, 3000, userModel, true);
+  // Optimasi: max_tokens adaptif — lebih kecil untuk materi pendek
+  // Materi <3000 char biasanya butuh ~1200 tokens untuk 10 soal
+  const adaptiveMaxTokens = materialText.length < 3000 ? 1200 : 2000;
+  const rawText = await callGroqAPI(prompt, apiKey, adaptiveMaxTokens, userModel, true);
   
   const rawQuestions = parseGroqResponse(rawText);
 

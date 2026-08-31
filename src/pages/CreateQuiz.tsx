@@ -134,6 +134,10 @@ export default function CreateQuiz() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
+            onClick={(e) => {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }}
             className={`card-elevated relative block cursor-pointer border-2 border-dashed p-10 text-center transition duration-300 ${
               dragOver
                 ? "border-primary-400 bg-primary-50/70 scale-[1.01] shadow-glow"
@@ -150,11 +154,11 @@ export default function CreateQuiz() {
               PDF, DOC, DOCX · Maks 50 MB
             </p>
 
-            {/* Native file input overlay */}
+            {/* Hidden file input — sr-only ensures mobile browsers can reliably open the file picker via ref.click() */}
             <input
               ref={fileInputRef}
               type="file"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="sr-only"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={handleInputChange}
               aria-label="Pilih file PDF atau DOCX"

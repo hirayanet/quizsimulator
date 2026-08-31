@@ -117,7 +117,9 @@ export async function summarizeMaterialCohere(
   apiKey: string,
   userModel?: string | null
 ): Promise<string> {
-  if (materialText.length < 5000) {
+  // Optimasi: untuk materi pendek, langsung pakai tanpa AI summarization
+  if (materialText.length < 3000) {
+    console.log("[Cohere] Material is short, skipping summarization.");
     return materialText;
   }
 
@@ -267,7 +269,9 @@ export async function generateQuizWithCohere(
   
   const summary = await summarizeMaterialCohere(materialText, apiKey, userModel);
   const prompt = buildPrompt(summary, config, targetCount);
-  const rawText = await callCohereAPI(prompt, apiKey, 3000, userModel, true);
+  // Optimasi: max_tokens adaptif — lebih kecil untuk materi pendek
+  const adaptiveMaxTokens = materialText.length < 3000 ? 1200 : 2000;
+  const rawText = await callCohereAPI(prompt, apiKey, adaptiveMaxTokens, userModel, true);
   
   const rawQuestions = parseCohereResponse(rawText);
 
