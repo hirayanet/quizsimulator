@@ -17,6 +17,24 @@ export const initialProcessSteps: ProcessStep[] = [
 export type DetailCallback = (message: string) => void;
 
 /**
+ * Checkpoint ekstraksi — halaman yang sudah selesai diproses pada sesi
+ * sebelumnya (mis. saat tab di-reload karena layar HP terkunci).
+ * `savedPages` memetakan indeks halaman → teks hasil ekstraksi;
+ * `scannedPages` berisi indeks halaman yang tidak punya text layer (scan).
+ */
+export interface ExtractionCheckpoint {
+  savedPages: Record<number, string>;
+  scannedPages: number[];
+}
+
+/**
+ * Dipanggil berkala saat ekstraksi berjalan dengan snapshot progres
+ * (halaman yang sudah selesai + daftar halaman scan), agar bisa disimpan
+ * ke IndexedDB dan dilanjutkan jika tab di-reload.
+ */
+export type CheckpointCallback = (checkpoint: ExtractionCheckpoint, totalPages: number) => void;
+
+/**
  * Batas teks hasil ekstraksi yang disimpan:
  * - Generator AI hanya membaca ±12–15 ribu karakter awal materi.
  * - Fallback berbasis kalimat tidak membutuhkan ratusan ribu karakter.
@@ -28,6 +46,8 @@ export async function extractTextFromFile(
   file: File,
   onProgress?: (stepId: string, status: ProcessStep["status"]) => void,
   onDetail?: DetailCallback,
+  onCheckpoint?: CheckpointCallback,
+  checkpoint?: ExtractionCheckpoint | null,
 ): Promise<string> {
   const kind = getFileKind(file);
 
@@ -38,7 +58,7 @@ export async function extractTextFromFile(
 
   try {
     if (kind === "pdf") {
-      text = await extractPdfText(file, onDetail);
+      text = await extractPdfText(file, onDetail, onCheckpoint, checkpoint);
     } else if (kind === "docx" || kind === "doc") {
       text = await extractDocxText(file);
     } else if (kind === "audio" || kind === "video") {
@@ -117,7 +137,12 @@ const MIN_TEXT_CHARS = 20;
  */
 const OCR_SCALE = 1.6;
 
-async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<string> {
+async function extractPdfText(
+  file: File,
+  onDetail?: DetailCallback,
+  onCheckpoint?: CheckpointCallback,
+  checkpoint?: ExtractionCheckpoint | null,
+): Promise<string> {
   const pdfjs = await import("pdfjs-dist");
   // Gunakan CDN untuk worker agar tidak gagal diload pada perangkat mobile (iOS/Android Safari)
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -127,16 +152,40 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
   const numPages = pdf.numPages;
 
   const pageTexts: string[] = new Array(numPages);
-  const scannedPages: number[] = [];
-  let processed = 0;
+  // Halaman yang sudah selesai pada sesi sebelumnya (dipakai saat melanjutkan)
+  const savedPages: Record<number, string> = { ...(checkpoint?.savedPages ?? {}) };
+  const resuming = Object.keys(savedPages).length > 0;
+  const scanSet = new Set<number>(checkpoint?.scannedPages ?? []);
+
+  const emitCheckpoint = (totalPages: number) => {
+    onCheckpoint?.({ savedPages, scannedPages: [...scanSet] }, totalPages);
+  };
+
+  // Jumlah halaman yang sudah diproses sebelumnya (indeks valid saja)
+  let processed = resuming
+    ? Object.keys(savedPages).filter((k) => Number(k) < numPages).length
+    : 0;
 
   try {
-    // ── Pass 1: ambil text-layer SEMUA halaman secara paralel (tanpa render) ──
+    // ── Fase 1: ambil text-layer SEMUA halaman secara paralel (tanpa render) ──
     // Dokumen teks besar tidak lagi diproses halaman demi halaman berurutan,
     // sehingga waktu baca berkurang drastis (tergantung jumlah inti CPU).
-    onDetail?.(numPages > 1 ? `Membaca halaman 0 dari ${numPages}…` : "Membaca halaman…");
+    onDetail?.(
+      numPages > 1
+        ? `${resuming ? "Melanjutkan — " : ""}Membaca halaman ${processed} dari ${numPages}…`
+        : resuming
+          ? "Melanjutkan proses…"
+          : "Membaca halaman…",
+    );
 
     await mapConcurrent(numPages, getConcurrency(), async (i) => {
+      // Halaman sudah selesai pada sesi sebelumnya → lewati (tidak diproses ulang)
+      if (savedPages[i] !== undefined) {
+        pageTexts[i] = savedPages[i];
+        processed++;
+        return;
+      }
+
       const page = await pdf.getPage(i + 1);
       let pageText = "";
       try {
@@ -154,23 +203,28 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
 
       if (pageText.replace(/\s+/g, "").length > MIN_TEXT_CHARS) {
         pageTexts[i] = pageText;
+        savedPages[i] = pageText;
       } else {
         // Halaman nyaris tanpa teks → kemungkinan hasil scan, tandai untuk OCR
-        scannedPages.push(i);
+        scanSet.add(i);
       }
 
       processed++;
       if (numPages > 1 && (processed % 5 === 0 || processed === numPages)) {
         onDetail?.(`Membaca halaman ${processed} dari ${numPages}…`);
+        // Simpan progres agar bisa dilanjutkan jika tab tiba-tiba di-reload
+        emitCheckpoint(numPages);
       }
     });
 
-    // ── Pass 2: OCR halaman scan (berurutan, worker tunggal agar hemat memori) ──
-    if (scannedPages.length > 0) {
-      scannedPages.sort((a, b) => a - b);
+    // ── Fase 2: OCR halaman scan (berurutan, worker tunggal agar hemat memori) ──
+    const scannedPages = [...scanSet].sort((a, b) => a - b);
+    const remainingScans = scannedPages.filter((p) => savedPages[p] === undefined);
 
+    if (remainingScans.length > 0) {
+      // Penjelasan dua fase: "17" tadi = total halaman; angka ini = jumlah halaman scan
       onDetail?.(
-        `Ditemukan ${scannedPages.length} halaman gambar/scan — menyiapkan pengenalan teks…`,
+        `Fase 1 selesai — ${scannedPages.length} halaman tanpa teks (scan). Mulai pengenalan teks…`,
       );
 
       // OCR dijalankan lazy — hanya jika ada halaman tanpa text layer (hasil scan)
@@ -178,7 +232,7 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
       const ensureOcrWorker = async (): Promise<OcrWorkerLike | null> => {
         if (ocrWorker) return ocrWorker;
         try {
-          onDetail?.("Menyiapkan pengenalan teks (unduh model bahasa, sekali saja)…");
+          onDetail?.("Mengunduh model bahasa untuk scan (sekali saja)…");
           const { createWorker } = await import("tesseract.js");
           ocrWorker = (await createWorker("ind")) as unknown as OcrWorkerLike;
           return ocrWorker;
@@ -187,15 +241,19 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
         }
       };
 
-      let ocrDone = 0;
+      // Mulai dari jumlah scan yang sudah selesai pada sesi sebelumnya
+      let ocrDone = scannedPages.length - remainingScans.length;
       try {
         for (const i of scannedPages) {
+          if (savedPages[i] !== undefined) continue; // sudah selesai OCR sebelumnya
+
           const worker = await ensureOcrWorker();
           if (!worker) break;
 
           try {
+            // Tampilkan nomor scan DAN nomor halaman PDF asli agar tidak rancu
             onDetail?.(
-              `Mengenali teks halaman ${ocrDone + 1} dari ${scannedPages.length} (gambar/scan)…`,
+              `Mengenali teks scan ${ocrDone + 1} dari ${scannedPages.length} (halaman PDF ${i + 1} dari ${numPages})…`,
             );
             const page = await pdf.getPage(i + 1);
 
@@ -211,7 +269,11 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
             if (ctx) {
               await page.render({ canvasContext: ctx, viewport }).promise;
               const { data } = await worker.recognize(canvas);
-              pageTexts[i] = (data.text || "") + "\n";
+              const ocrText = (data.text || "") + "\n";
+              pageTexts[i] = ocrText;
+              savedPages[i] = ocrText;
+              // Simpan hasil OCR per halaman → bisa lanjut jika tab di-reload
+              emitCheckpoint(numPages);
             }
             try {
               page.cleanup();
@@ -228,6 +290,9 @@ async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<st
         await (ocrWorker as OcrWorkerLike | null)?.terminate();
       }
     }
+
+    // Pastikan snapshot terakhir tersimpan (mencakup kasus tanpa scan / semua selesai)
+    emitCheckpoint(numPages);
 
     return cleanExtractedText(pageTexts.join("\n"));
   } finally {

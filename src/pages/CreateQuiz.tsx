@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, FileText, Loader2, Upload, X } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, RotateCcw, Upload, X } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import { createMaterial } from "../lib/db";
-import { extractTextFromFile, initialProcessSteps, type ProcessStep } from "../lib/fileProcessing";
+import { extractTextFromFile, initialProcessSteps, type ExtractionCheckpoint, type ProcessStep } from "../lib/fileProcessing";
+import { beginPendingUpload, clearPendingUpload, getPendingUpload, savePendingProgress, type PendingUpload } from "../lib/uploadSession";
 import { getFileKind, formatFileSize, isSupportedFile } from "../lib/utils";
 import PageHeader from "../components/PageHeader";
 import { useToastHelpers } from "../context/ToastContext";
@@ -58,7 +59,7 @@ function showSuccessOverlay() {
   }
   const t = document.getElementById(`${OVERLAY_ID}_title`);
   const s = document.getElementById(`${OVERLAY_ID}_subtitle`);
-  if (t) t.textContent = "Materi Siap! ✓";
+  if (t) t.textContent = "Materi Berhasil Diupload ✓";
   if (s) s.textContent = "Mengalihkan ke konfigurasi quiz…";
 }
 
@@ -83,7 +84,7 @@ const STEP_OVERLAY_TEXT: Record<string, [string, string]> = {
 export default function CreateQuiz() {
   const { user } = useUser();
   const navigate = useNavigate();
-  const { toastError, toastSuccess } = useToastHelpers();
+  const { toastError } = useToastHelpers();
   const { light, success, error: errorHaptic } = useHaptic();
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -93,9 +94,24 @@ export default function CreateQuiz() {
   const [detail, setDetail] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+  // Upload yang terhenti (layar terkunci → tab di-reload) dan bisa dilanjutkan
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  // Penanda bahwa proses dibatalkan / komponen di-unmount → jangan lanjut ke pembuatan materi
+  const cancelledRef = useRef(false);
 
-  // Bersihkan overlay saat komponen unmount
-  useEffect(() => { return () => removeOverlay(); }, []);
+  // Muat sesi upload yang terhenti (jika ada) saat halaman dibuka
+  useEffect(() => {
+    let cancelled = false;
+    getPendingUpload().then((pending) => {
+      if (!cancelled && pending) setPendingUpload(pending);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Bersihkan overlay & tandai batal saat komponen unmount
+  useEffect(() => {
+    return () => { removeOverlay(); cancelledRef.current = true; };
+  }, []);
 
   const updateStep = useCallback((stepId: string, status: ProcessStep["status"]) => {
     // Update vanilla overlay teks (mobile utama)
@@ -130,7 +146,7 @@ export default function CreateQuiz() {
     return () => clearInterval(interval);
   }, [processing, progress, startedAt]);
 
-  const handleFile = useCallback(async (f: File) => {
+  const handleFile = useCallback(async (f: File, checkpoint?: ExtractionCheckpoint | null) => {
     if (!isSupportedFile(f)) {
       removeOverlay();
       toastError(`Format tidak didukung: ${f.name}. Gunakan PDF atau DOCX.`);
@@ -144,8 +160,12 @@ export default function CreateQuiz() {
       return;
     }
 
+    cancelledRef.current = false;
+
     // Overlay sudah tampil dari input.onchange — perbarui ke teks proses awal
     createOrUpdateOverlay("Memuat File…", "Sedang menyiapkan file Anda");
+
+    const kind = getFileKind(f);
 
     setFile(f);
     setProcessing(true);
@@ -155,6 +175,9 @@ export default function CreateQuiz() {
     setStartedAt(Date.now());
     setEtaSeconds(null);
 
+    // Simpan sesi SEBELUM ekstraksi — jika tab di-reload, user bisa melanjutkan
+    await beginPendingUpload(f, kind);
+
     try {
       const text = await extractTextFromFile(
         f,
@@ -163,7 +186,13 @@ export default function CreateQuiz() {
           setDetail(msg);
           updateOverlaySubtitle(msg);
         },
+        // Simpan progres per halaman ke IndexedDB agar bisa dilanjutkan
+        (cp, totalPages) => {
+          savePendingProgress(cp.savedPages, cp.scannedPages, totalPages);
+        },
+        checkpoint,
       );
+      if (cancelledRef.current) return;
       setProgress(70);
       setDetail(null);
 
@@ -175,23 +204,29 @@ export default function CreateQuiz() {
       }
 
       createOrUpdateOverlay("Menyimpan Materi…", "Menghubungi server…");
-      const kind = getFileKind(f);
       const material = await createMaterial(user.id, f.name, kind, f.size, text, "ready");
+      if (cancelledRef.current) return;
 
       setProgress(100);
       updateStep("prepare", "done");
 
+      // Sukses — hapus sesi yang tersimpan agar tidak ditawarkan lagi
+      await clearPendingUpload();
+
       // Tampilkan ikon centang hijau di overlay agar user tahu sukses
+      // (tanpa toast — toast akan menempel di halaman konfigurasi quiz
+      //  dan terlihat seperti notifikasi yang muncul saat generate soal)
       showSuccessOverlay();
-      toastSuccess("Materi siap!");
       success();
 
       // Hapus overlay lalu navigasi setelah user sempat melihat ikon sukses
       setTimeout(() => {
+        if (cancelledRef.current) return;
         removeOverlay();
         navigate(`/quiz/config/${material.id}`);
       }, 900);
     } catch (err) {
+      await clearPendingUpload();
       removeOverlay();
       const msg = err instanceof Error ? err.message : "Gagal memproses file.";
       toastError(msg);
@@ -199,7 +234,7 @@ export default function CreateQuiz() {
       setFile(null);
       setProcessing(false);
     }
-  }, [user, updateStep, navigate, toastError, toastSuccess, success, errorHaptic]);
+  }, [user, updateStep, navigate, toastError, success, errorHaptic]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -209,10 +244,34 @@ export default function CreateQuiz() {
   }, [handleFile]);
 
   const removeFile = () => {
+    cancelledRef.current = true;
+    clearPendingUpload();
     setFile(null);
     setProgress(0);
     setSteps(initialProcessSteps);
   };
+
+  const discardPendingUpload = () => {
+    cancelledRef.current = true;
+    clearPendingUpload();
+    setPendingUpload(null);
+  };
+
+  const resumePendingUpload = () => {
+    if (!pendingUpload) return;
+    const f = pendingUpload.file;
+    const checkpoint: ExtractionCheckpoint = {
+      savedPages: pendingUpload.savedPages,
+      scannedPages: pendingUpload.scannedPages,
+    };
+    setPendingUpload(null);
+    handleFile(f, checkpoint);
+  };
+
+  const pendingDoneCount = pendingUpload ? Object.keys(pendingUpload.savedPages).length : 0;
+  const pendingProgressText = pendingUpload?.totalPages
+    ? ` Sudah diproses ${pendingDoneCount} dari ${pendingUpload.totalPages} halaman — lanjut dari sini, tidak perlu mulai dari nol.`
+    : " Proses baru saja dimulai — bisa langsung dilanjutkan dari awal file.";
 
   const fileIcon = file ? getFileKind(file) : null;
 
@@ -221,7 +280,7 @@ export default function CreateQuiz() {
       <PageHeader title="Buat Quiz Baru" backTo="/" />
 
       <section className="space-y-5">
-        {!file ? (
+        {!file && !pendingUpload ? (
           // Empty state - drag & drop zone
           <label
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -264,6 +323,34 @@ export default function CreateQuiz() {
               }
             }} />
           </label>
+        ) : !file && pendingUpload ? (
+          // Upload terhenti (layar terkunci / tab ditutup) — tawarkan melanjutkan
+          <div className="card-elevated animate-fade-in p-6 space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-amber-50 to-white text-amber-600 ring-1 ring-amber-100">
+                <RotateCcw size={24} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-semibold text-neutral-800">{pendingUpload.file.name}</p>
+                <p className="mt-1 text-sm text-neutral-500">{formatFileSize(pendingUpload.file.size)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-amber-50/70 p-4 text-sm leading-5 text-neutral-600">
+              <p className="mb-1 font-semibold text-neutral-800">Upload sebelumnya terhenti</p>
+              <p>
+                Proses berjalan saat layar terkunci atau tab ditutup, lalu browser me-reload halaman.
+                {pendingProgressText}
+              </p>
+            </div>
+
+            <button onClick={resumePendingUpload} className="btn-primary w-full">
+              Lanjutkan Upload
+            </button>
+            <button onClick={discardPendingUpload} className="btn-ghost w-full">
+              Batalkan &amp; Mulai Ulang
+            </button>
+          </div>
         ) : (
           // File selected - show React progress UI (terlihat di desktop / jika React berhasil render)
           <div className="card-elevated animate-fade-in p-6 space-y-5">
@@ -273,8 +360,8 @@ export default function CreateQuiz() {
                 <FileText size={24} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold text-neutral-800">{file.name}</p>
-                <p className="mt-1 text-sm text-neutral-500">{formatFileSize(file.size)}</p>
+                <p className="truncate text-base font-semibold text-neutral-800">{file!.name}</p>
+                <p className="mt-1 text-sm text-neutral-500">{formatFileSize(file!.size)}</p>
               </div>
               <button
                 onClick={removeFile}
@@ -353,7 +440,7 @@ export default function CreateQuiz() {
             {/* Cancel button */}
             {processing && (
               <button
-                onClick={() => { removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); setDetail(null); }}
+                onClick={() => { cancelledRef.current = true; clearPendingUpload(); removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); setDetail(null); }}
                 className="btn-ghost w-full"
               >
                 Batal
