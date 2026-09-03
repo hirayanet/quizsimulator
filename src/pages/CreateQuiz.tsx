@@ -18,6 +18,7 @@ export default function CreateQuiz() {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [initializing, setInitializing] = useState(false); // fase instan sebelum process
   const [steps, setSteps] = useState<ProcessStep[]>(initialProcessSteps);
   const [progress, setProgress] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -66,7 +67,15 @@ export default function CreateQuiz() {
       return;
     }
 
+    // Langsung tampilkan indikator loading sebelum proses apapun
+    // Ini penting untuk mobile agar pengguna tidak bingung apakah aplikasi error
+    setInitializing(true);
+    
+    // Biarkan React melakukan satu render cycle untuk menampilkan loading screen
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
     setFile(f);
+    setInitializing(false);
     setProcessing(true);
     setSteps(initialProcessSteps.map((s) => ({ ...s, status: "pending" })));
     setProgress(10);
@@ -125,6 +134,19 @@ export default function CreateQuiz() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:py-8">
       <PageHeader title="Buat Quiz Baru" backTo="/" />
+
+      {/* Overlay Loading Instan — muncul segera saat file dipilih di mobile */}
+      {initializing && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-white/90 backdrop-blur-sm">
+          <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-glow">
+            <Loader2 size={38} className="animate-spin" />
+          </div>
+          <div className="text-center">
+            <p className="text-lg font-bold text-neutral-800">Memuat File…</p>
+            <p className="mt-1 text-sm text-neutral-500">Sedang menyiapkan file Anda</p>
+          </div>
+        </div>
+      )}
 
       {/* Upload Zone — Main Focus */}
       <section className="space-y-5">
