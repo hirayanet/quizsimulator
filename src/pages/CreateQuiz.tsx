@@ -37,12 +37,15 @@ export default function CreateQuiz() {
     });
   }, [light]);
 
-  // Hapus vanilla overlay begitu React sudah merender progress bar
+  // Helper: hapus vanilla overlay dari DOM
+  const removeVanillaOverlay = () => {
+    document.getElementById("__mobile_file_overlay__")?.remove();
+  };
+
+  // Bersihkan overlay saat komponen di-unmount (navigasi ke halaman lain)
   useEffect(() => {
-    if (processing) {
-      document.getElementById("__mobile_file_overlay__")?.remove();
-    }
-  }, [processing]);
+    return () => removeVanillaOverlay();
+  }, []);
 
   // ETA calculator
   useEffect(() => {
@@ -63,30 +66,33 @@ export default function CreateQuiz() {
 
   const handleFile = useCallback(async (f: File) => {
     if (!isSupportedFile(f)) {
+      removeVanillaOverlay(); // Pastikan overlay hilang jika format tidak didukung
       toastError(`Format tidak didukung: ${f.name}. Gunakan PDF atau DOCX.`);
       errorHaptic();
       return;
     }
     if (f.size > 50 * 1024 * 1024) {
+      removeVanillaOverlay();
       toastError("File terlalu besar. Maksimal 50 MB.");
       errorHaptic();
       return;
     }
 
-    // Langsung set state processing — vanilla overlay di ref input akan dihapus
-    // oleh useEffect saat React selesai merender progress bar
     setFile(f);
     setProcessing(true);
     setSteps(initialProcessSteps.map((s) => ({ ...s, status: "pending" })));
     setProgress(10);
     setStartedAt(Date.now());
     setEtaSeconds(null);
+    // Hapus overlay setelah React menge-set state processing — beri waktu 1 frame
+    requestAnimationFrame(() => removeVanillaOverlay());
 
     try {
       const text = await extractTextFromFile(f, updateStep);
       setProgress(70);
 
       if (!user) {
+        removeVanillaOverlay();
         toastError("Sesi tidak ditemukan. Masukkan nama kembali.");
         setProcessing(false);
         return;
@@ -97,11 +103,13 @@ export default function CreateQuiz() {
 
       setProgress(100);
       updateStep("prepare", "done");
+      removeVanillaOverlay(); // Pastikan overlay hilang sebelum navigasi
       toastSuccess("Materi siap!");
       success();
 
       setTimeout(() => navigate(`/quiz/config/${material.id}`), 500);
     } catch (err) {
+      removeVanillaOverlay(); // Pastikan overlay hilang saat error
       const msg = err instanceof Error ? err.message : "Gagal memproses file.";
       toastError(msg);
       errorHaptic();
