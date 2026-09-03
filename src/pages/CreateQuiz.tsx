@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle2, FileText, Loader2, Upload, X } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, Upload, X } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import { createMaterial } from "../lib/db";
 import { extractTextFromFile, initialProcessSteps, type ProcessStep } from "../lib/fileProcessing";
@@ -9,12 +9,76 @@ import PageHeader from "../components/PageHeader";
 import { useToastHelpers } from "../context/ToastContext";
 import { useHaptic } from "../hooks/useHaptic";
 
+// ─── Vanilla DOM Overlay Helpers ────────────────────────────────────────────
+// Di mobile, PDF.js memblok main thread sehingga React tidak bisa re-render.
+// Overlay ini dibuat langsung di DOM agar muncul INSTAN dan tetap tampil
+// sepanjang proses, memperbarui teksnya di setiap tahap.
+
+const OVERLAY_ID = "__mobile_file_overlay__";
+
+function createOrUpdateOverlay(title: string, subtitle: string) {
+  let overlay = document.getElementById(OVERLAY_ID);
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = OVERLAY_ID;
+    overlay.style.cssText = [
+      "position:fixed", "inset:0", "z-index:9999",
+      "display:flex", "flex-direction:column", "align-items:center",
+      "justify-content:center", "gap:24px",
+      "background:rgba(255,255,255,0.96)",
+      "-webkit-backdrop-filter:blur(8px)", "backdrop-filter:blur(8px)",
+    ].join(";");
+    overlay.innerHTML = `
+      <div id="${OVERLAY_ID}_icon" style="width:80px;height:80px;border-radius:24px;background:linear-gradient(135deg,#4f46e5 0%,#6366f1 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 36px rgba(99,102,241,0.4)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+          style="animation:${OVERLAY_ID}_spin 0.85s linear infinite;transform-origin:center">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      </div>
+      <div style="text-align:center;padding:0 32px">
+        <p id="${OVERLAY_ID}_title" style="font-size:18px;font-weight:700;color:#111827;margin:0 0 6px;line-height:1.3"></p>
+        <p id="${OVERLAY_ID}_subtitle" style="font-size:13px;color:#6b7280;margin:0;line-height:1.5"></p>
+      </div>
+      <style>@keyframes ${OVERLAY_ID}_spin { to { transform: rotate(360deg) } }</style>
+    `;
+    document.body.appendChild(overlay);
+  }
+  const t = document.getElementById(`${OVERLAY_ID}_title`);
+  const s = document.getElementById(`${OVERLAY_ID}_subtitle`);
+  if (t) t.textContent = title;
+  if (s) s.textContent = subtitle;
+}
+
+function showSuccessOverlay() {
+  const icon = document.getElementById(`${OVERLAY_ID}_icon`);
+  if (icon) {
+    icon.style.background = "linear-gradient(135deg,#16a34a 0%,#22c55e 100%)";
+    icon.style.boxShadow = "0 0 36px rgba(34,197,94,0.4)";
+    icon.innerHTML = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+  const t = document.getElementById(`${OVERLAY_ID}_title`);
+  const s = document.getElementById(`${OVERLAY_ID}_subtitle`);
+  if (t) t.textContent = "Materi Siap! ✓";
+  if (s) s.textContent = "Mengalihkan ke konfigurasi quiz…";
+}
+
+function removeOverlay() {
+  document.getElementById(OVERLAY_ID)?.remove();
+}
+
+// Peta stepId_status → [title, subtitle] untuk update overlay
+const STEP_OVERLAY_TEXT: Record<string, [string, string]> = {
+  "read_active":    ["Membaca Materi…",      "Mengekstrak teks dari file Anda"],
+  "analyze_active": ["Menganalisis Materi…", "Memahami konten materi"],
+  "prepare_active": ["Menyiapkan Quiz…",     "Hampir selesai!"],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function CreateQuiz() {
   const { user } = useUser();
   const navigate = useNavigate();
   const { toastError, toastSuccess } = useToastHelpers();
   const { light, success, error: errorHaptic } = useHaptic();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -23,42 +87,37 @@ export default function CreateQuiz() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
 
+  // Bersihkan overlay saat komponen unmount
+  useEffect(() => { return () => removeOverlay(); }, []);
+
   const updateStep = useCallback((stepId: string, status: ProcessStep["status"]) => {
+    // Update vanilla overlay teks (mobile utama)
+    const key = `${stepId}_${status}`;
+    if (STEP_OVERLAY_TEXT[key]) {
+      const [title, subtitle] = STEP_OVERLAY_TEXT[key];
+      createOrUpdateOverlay(title, subtitle);
+    }
+    // Update React state juga (untuk desktop)
     setSteps((prev) => {
       const newSteps = prev.map((s) => (s.id === stepId ? { ...s, status } : s));
-      // Hitung progress otomatis dari status step
       const total = newSteps.length;
       const doneCount = newSteps.filter((s) => s.status === "done").length;
       const activeCount = newSteps.filter((s) => s.status === "active").length;
-      const computed = Math.round(((doneCount + activeCount * 0.5) / total) * 90) + 10; // 10-100
+      const computed = Math.round(((doneCount + activeCount * 0.5) / total) * 90) + 10;
       setProgress(computed);
       light();
       return newSteps;
     });
   }, [light]);
 
-  // Helper: hapus vanilla overlay dari DOM
-  const removeVanillaOverlay = () => {
-    document.getElementById("__mobile_file_overlay__")?.remove();
-  };
-
-  // Bersihkan overlay saat komponen di-unmount (navigasi ke halaman lain)
-  useEffect(() => {
-    return () => removeVanillaOverlay();
-  }, []);
-
   // ETA calculator
   useEffect(() => {
-    if (!processing || progress >= 100) {
-      setEtaSeconds(null);
-      return;
-    }
+    if (!processing || progress >= 100) { setEtaSeconds(null); return; }
     const interval = setInterval(() => {
       if (startedAt && progress > 10) {
         const elapsed = (Date.now() - startedAt) / 1000;
-        const rate = (progress - 10) / elapsed; // %/s
-        const remaining = rate > 0 ? Math.round((100 - progress) / rate) : null;
-        setEtaSeconds(remaining);
+        const rate = (progress - 10) / elapsed;
+        setEtaSeconds(rate > 0 ? Math.round((100 - progress) / rate) : null);
       }
     }, 500);
     return () => clearInterval(interval);
@@ -66,17 +125,20 @@ export default function CreateQuiz() {
 
   const handleFile = useCallback(async (f: File) => {
     if (!isSupportedFile(f)) {
-      removeVanillaOverlay(); // Pastikan overlay hilang jika format tidak didukung
+      removeOverlay();
       toastError(`Format tidak didukung: ${f.name}. Gunakan PDF atau DOCX.`);
       errorHaptic();
       return;
     }
     if (f.size > 50 * 1024 * 1024) {
-      removeVanillaOverlay();
+      removeOverlay();
       toastError("File terlalu besar. Maksimal 50 MB.");
       errorHaptic();
       return;
     }
+
+    // Overlay sudah tampil dari input.onchange — perbarui ke teks proses awal
+    createOrUpdateOverlay("Memuat File…", "Sedang menyiapkan file Anda");
 
     setFile(f);
     setProcessing(true);
@@ -84,32 +146,37 @@ export default function CreateQuiz() {
     setProgress(10);
     setStartedAt(Date.now());
     setEtaSeconds(null);
-    // Hapus overlay setelah React menge-set state processing — beri waktu 1 frame
-    requestAnimationFrame(() => removeVanillaOverlay());
 
     try {
       const text = await extractTextFromFile(f, updateStep);
       setProgress(70);
 
       if (!user) {
-        removeVanillaOverlay();
+        removeOverlay();
         toastError("Sesi tidak ditemukan. Masukkan nama kembali.");
         setProcessing(false);
         return;
       }
 
+      createOrUpdateOverlay("Menyimpan Materi…", "Menghubungi server…");
       const kind = getFileKind(f);
       const material = await createMaterial(user.id, f.name, kind, f.size, text, "ready");
 
       setProgress(100);
       updateStep("prepare", "done");
-      removeVanillaOverlay(); // Pastikan overlay hilang sebelum navigasi
+
+      // Tampilkan ikon centang hijau di overlay agar user tahu sukses
+      showSuccessOverlay();
       toastSuccess("Materi siap!");
       success();
 
-      setTimeout(() => navigate(`/quiz/config/${material.id}`), 500);
+      // Hapus overlay lalu navigasi setelah user sempat melihat ikon sukses
+      setTimeout(() => {
+        removeOverlay();
+        navigate(`/quiz/config/${material.id}`);
+      }, 900);
     } catch (err) {
-      removeVanillaOverlay(); // Pastikan overlay hilang saat error
+      removeOverlay();
       const msg = err instanceof Error ? err.message : "Gagal memproses file.";
       toastError(msg);
       errorHaptic();
@@ -125,12 +192,6 @@ export default function CreateQuiz() {
     if (f) handleFile(f);
   }, [handleFile]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) handleFile(f);
-    e.target.value = "";
-  };
-
   const removeFile = () => {
     setFile(null);
     setProgress(0);
@@ -143,7 +204,6 @@ export default function CreateQuiz() {
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:py-8">
       <PageHeader title="Buat Quiz Baru" backTo="/" />
 
-      {/* Upload Zone — Main Focus */}
       <section className="space-y-5">
         {!file ? (
           // Empty state - drag & drop zone
@@ -167,53 +227,21 @@ export default function CreateQuiz() {
               PDF, DOC, DOCX · Maks 50 MB
             </p>
 
-            {/* NATIVE DOM INPUT MOUNT — wajib untuk Chrome Android / WebViews.
-                Overlay loading dibuat via vanilla DOM agar muncul instan tanpa menunggu React */}
+            {/* NATIVE DOM INPUT MOUNT — wajib untuk Chrome Android / WebViews */}
             <div ref={(el) => {
-              if (el && !el.querySelector('input')) {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.className = 'hidden';
-                input.style.display = 'none';
-                input.accept = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              if (el && !el.querySelector("input")) {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.style.display = "none";
+                input.accept = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
                 input.onchange = (e) => {
                   const target = e.target as HTMLInputElement;
                   const f = target.files?.[0];
                   if (f) {
-                    // Buat overlay LANGSUNG via DOM — tidak perlu menunggu React re-render sama sekali
-                    if (!document.getElementById('__mobile_file_overlay__')) {
-                      const overlay = document.createElement('div');
-                      overlay.id = '__mobile_file_overlay__';
-                      overlay.style.cssText = [
-                        'position:fixed',
-                        'inset:0',
-                        'z-index:9999',
-                        'display:flex',
-                        'flex-direction:column',
-                        'align-items:center',
-                        'justify-content:center',
-                        'gap:20px',
-                        'background:rgba(255,255,255,0.94)',
-                        '-webkit-backdrop-filter:blur(6px)',
-                        'backdrop-filter:blur(6px)',
-                      ].join(';');
-                      overlay.innerHTML = `
-                        <div style="width:76px;height:76px;border-radius:22px;background:linear-gradient(135deg,#4f46e5 0%,#6366f1 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 0 32px rgba(99,102,241,0.45)">
-                          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-                            style="animation:__spin__ 0.9s linear infinite;transform-origin:center">
-                            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                          </svg>
-                        </div>
-                        <div style="text-align:center;padding:0 24px">
-                          <p style="font-size:18px;font-weight:700;color:#111827;margin:0;line-height:1.3">Memuat File…</p>
-                          <p style="font-size:14px;color:#6b7280;margin:6px 0 0">Sedang menyiapkan file Anda</p>
-                        </div>
-                        <style>@keyframes __spin__{to{transform:rotate(360deg)}}</style>
-                      `;
-                      document.body.appendChild(overlay);
-                    }
+                    // Tampilkan overlay SEKETIKA sebelum handleFile dipanggil
+                    createOrUpdateOverlay("Memuat File…", "Sedang menyiapkan file Anda");
                     handleFile(f);
-                    target.value = '';
+                    target.value = "";
                   }
                 };
                 el.appendChild(input);
@@ -221,16 +249,12 @@ export default function CreateQuiz() {
             }} />
           </label>
         ) : (
-          // File selected - show progress
+          // File selected - show React progress UI (terlihat di desktop / jika React berhasil render)
           <div className="card-elevated animate-fade-in p-6 space-y-5">
             {/* File info row */}
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-50 to-white text-primary-600 ring-1 ring-primary-100">
-                {fileIcon === "pdf" || fileIcon === "doc" || fileIcon === "docx" ? (
-                  <FileText size={24} />
-                ) : (
-                  <FileText size={24} />
-                )}
+                <FileText size={24} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold text-neutral-800">{file.name}</p>
@@ -271,7 +295,6 @@ export default function CreateQuiz() {
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
                   )}
                 </div>
-                {/* Center percentage overlay */}
                 {progress >= 15 && (
                   <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-neutral-700 mix-blend-difference">
                     {progress}%
@@ -304,10 +327,10 @@ export default function CreateQuiz() {
               </div>
             )}
 
-            {/* Cancel button while processing */}
+            {/* Cancel button */}
             {processing && (
               <button
-                onClick={() => { setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); }}
+                onClick={() => { removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); }}
                 className="btn-ghost w-full"
               >
                 Batal
@@ -317,7 +340,6 @@ export default function CreateQuiz() {
         )}
       </section>
 
-      {/* Minimal hint */}
       <p className="mt-6 text-center text-xs text-neutral-400">
         Untuk hasil terbaik, gunakan dokumen dengan teks yang bisa dipilih (bukan scan gambar).
       </p>
