@@ -9,8 +9,7 @@ export interface ProcessStep {
 export const initialProcessSteps: ProcessStep[] = [
   { id: "upload", label: "File berhasil diupload", status: "pending" },
   { id: "read", label: "Membaca materi", status: "pending" },
-  { id: "analyze", label: "Menganalisis materi", status: "pending" },
-  { id: "prepare", label: "Menyiapkan quiz", status: "pending" },
+  { id: "save", label: "Menyimpan materi", status: "pending" },
 ];
 
 /** Callback progres detail (misal: "Membaca halaman 12 dari 40…") */
@@ -79,11 +78,11 @@ export async function extractTextFromFile(
 
   const limited = limitExtractedText(text);
 
+  // Catatan: tidak ada langkah "Menganalisis materi" / "Menyiapkan quiz" di sini.
+  // Keduanya hanya langkah kosmetik palsu (delay 600ms) yang membuat pengguna
+  // mengira quiz sedang disiapkan — padahal quiz hanya dibuat di halaman
+  // konfigurasi setelah tombol "Generate Quiz" ditekan.
   onProgress?.("read", "done");
-  onProgress?.("analyze", "active");
-  await delay(600);
-  onProgress?.("analyze", "done");
-  onProgress?.("prepare", "active");
 
   return limited;
 }
@@ -318,10 +317,6 @@ async function extractMediaTranscript(file: File): Promise<string> {
   throw new Error(
     "Transkripsi audio/video belum tersedia di versi ini. Silakan gunakan file PDF atau DOCX untuk saat ini.",
   );
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Potong teks sangat panjang di batas kata terakhir sebelum MAX_EXTRACTED_CHARS */

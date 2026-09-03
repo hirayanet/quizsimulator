@@ -74,10 +74,10 @@ function updateOverlaySubtitle(subtitle: string) {
 }
 
 // Peta stepId_status → [title, subtitle] untuk update overlay
+// (hanya langkah yang benar-benar terjadi saat upload — tanpa langkah kosmetik palsu)
 const STEP_OVERLAY_TEXT: Record<string, [string, string]> = {
-  "read_active":    ["Membaca Materi…",      "Mengekstrak teks dari file Anda"],
-  "analyze_active": ["Menganalisis Materi…", "Memahami konten materi"],
-  "prepare_active": ["Menyiapkan Quiz…",     "Hampir selesai!"],
+  "read_active": ["Membaca Materi…", "Mengekstrak teks dari file Anda"],
+  "save_active": ["Menyimpan Materi…", "Menghubungi server…"],
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -203,12 +203,13 @@ export default function CreateQuiz() {
         return;
       }
 
-      createOrUpdateOverlay("Menyimpan Materi…", "Menghubungi server…");
+      // Mulai penyimpanan materi ke database (overlay diperbarui via updateStep)
+      updateStep("save", "active");
       const material = await createMaterial(user.id, f.name, kind, f.size, text, "ready");
       if (cancelledRef.current) return;
 
+      updateStep("save", "done");
       setProgress(100);
-      updateStep("prepare", "done");
 
       // Sukses — hapus sesi yang tersimpan agar tidak ditawarkan lagi
       await clearPendingUpload();
