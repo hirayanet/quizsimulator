@@ -14,3 +14,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+// Daftarkan service worker (hanya produksi) agar aplikasi bisa di-install
+// sebagai PWA dan tetap bisa dibuka saat offline.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* abaikan — aplikasi tetap berjalan tanpa SW */
+    });
+  });
+}

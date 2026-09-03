@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Info, Shield, Key, Eye, EyeOff, ExternalLink, Trash2, Check, RefreshCw, Star } from "lucide-react";
+import { LogOut, Info, Shield, Key, Eye, EyeOff, ExternalLink, Trash2, Check, RefreshCw, Star, Smartphone, Download } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import PageHeader from "../components/PageHeader";
 import { saveGeminiKeyToDB, clearGeminiKeyFromDB } from "../lib/db";
@@ -10,6 +10,13 @@ import { getGroqModelsList } from "../lib/groqGenerator";
 import { getOpenRouterModelsList } from "../lib/openRouterGenerator";
 import { getGeminiModelsList } from "../lib/geminiGenerator";
 import { getCohereModelsList } from "../lib/cohereGenerator";
+
+// Event install PWA (belum ada di lib DOM TypeScript)
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export default function Profile() {
   const { user, logout, refreshUser } = useUser();
   const navigate = useNavigate();
@@ -324,6 +331,34 @@ export default function Profile() {
   const handleLogout = async () => {
     await logout();
     navigate("/");
+  };
+
+  // ── PWA: pasang aplikasi ──
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const updateStandalone = () => setIsStandalone(mq.matches);
+    updateStandalone();
+    mq.addEventListener?.("change", updateStandalone);
+
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as unknown as InstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    return () => {
+      mq.removeEventListener?.("change", updateStandalone);
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
   };
 
   if (!user) return null;
@@ -667,6 +702,29 @@ export default function Profile() {
             <Check size={16} /> Simpan Cohere Key
           </button>
         </div>
+      </div>
+
+      {/* Pasang Aplikasi (PWA) */}
+      <div className="card mb-5 p-5">
+        <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-neutral-700">
+          <Smartphone size={18} className="text-primary-500" /> Pasang Aplikasi
+        </h2>
+        <p className="mb-4 text-xs leading-relaxed text-neutral-500">
+          Install Quiz Simulator sebagai aplikasi agar shortcut muncul di desktop / beranda HP — terbuka lebih cepat, seperti aplikasi biasa.
+        </p>
+        {isStandalone ? (
+          <div className="rounded-xl bg-success-50 border border-success-200 px-4 py-3 text-sm font-semibold text-success-700">
+            ✓ Aplikasi sudah terpasang
+          </div>
+        ) : installPrompt ? (
+          <button onClick={handleInstall} className="btn-primary w-full">
+            <Download size={16} /> Install Aplikasi
+          </button>
+        ) : (
+          <div className="rounded-xl bg-neutral-50 border border-neutral-200 px-4 py-3 text-xs leading-5 text-neutral-600">
+            Di perangkat ini gunakan menu browser: <b>Chrome → ⋮ → "Install aplikasi"</b> atau <b>iPhone/Safari → Bagikan → "Tambahkan ke Layar Utama"</b>.
+          </div>
+        )}
       </div>
 
       {/* Logout */}
