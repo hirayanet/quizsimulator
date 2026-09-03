@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
   BarChart3,
+  BookOpen,
   CheckCircle2,
   ClipboardList,
   FileText,
   History,
   Plus,
-  Sparkles,
   Target,
-  BookOpen,
+  Upload,
 } from "lucide-react";
 import { useUser } from "../context/UserContext";
 import StatCard from "../components/StatCard";
-import EmptyState from "../components/EmptyState";
 import GeminiSetupModal from "../components/GeminiSetupModal";
 import { getUserStats, type UserStats } from "../lib/db";
+import { formatDate } from "../lib/utils";
 import { signInWithGoogle } from "../lib/supabase";
 import { hasCohereKey, hasGroqKey, hasOpenRouterKey } from "../lib/settingsStore";
 
@@ -112,11 +111,19 @@ export default function Dashboard() {
     );
   }
 
-  const hasData = stats && stats.totalQuizzes > 0;
+  // Nilai siap pakai (tetap aman walau stats belum termuat)
+  const latest = stats?.latestQuiz ?? null;
+  const hasData = !!latest;
+  const totalQuizzes = stats?.totalQuizzes ?? 0;
+  const averageScore = stats?.averageScore ?? 0;
+  const totalQuestions = stats?.totalQuestions ?? 0;
+  const correctAnswers = stats?.correctAnswers ?? 0;
+  const recentScores = stats?.recentScores ?? [];
+  const hasChart = recentScores.length > 1;
 
   return (
     <>
-      {/* Onboarding modal — muncul otomatis jika belum ada Gemini API key */}
+      {/* Onboarding modal — muncul otomatis jika belum ada API key */}
       {showSetup && user && (
         <GeminiSetupModal
           user={user}
@@ -129,258 +136,195 @@ export default function Dashboard() {
       )}
 
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 lg:py-8">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <div>
-          <div className="badge-soft mb-3">
-            <BookOpen size={14} />
-            Dashboard belajar
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Halo, {user.username}!</h1>
-          <p className="mt-1 text-sm text-neutral-500">Mari buat sesi belajar hari ini terasa lebih seru dan terstruktur.</p>
-        </div>
-        <button
-          onClick={() => navigate("/profile")}
-          className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 to-primary-500 text-sm font-bold text-white shadow-glow transition duration-300 hover:-translate-y-0.5"
-        >
-          {user.avatar_url ? (
-            <img src={user.avatar_url} alt={user.username} className="h-full w-full object-cover" />
-          ) : (
-            user.username.charAt(0).toUpperCase()
-          )}
-        </button>
-      </div>
-
-      <section className="card-elevated relative mb-6 overflow-hidden p-6 sm:p-7">
-        <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-primary-200/50 blur-3xl" />
-        <div className="absolute -left-6 bottom-0 h-28 w-28 rounded-full bg-accent-200/50 blur-3xl" />
-        <div className="relative z-10 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-          <div>
-            <div className="badge-soft mb-4">
-              <span className="h-2 w-2 rounded-full bg-success-500" />
-              Workspace aktif
-            </div>
-            <h2 className="max-w-xl text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
-              Bangun quiz dari materi Anda dengan pengalaman yang lebih interaktif.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-600">
-              Upload materi, buat konfigurasi soal, lalu pantau hasilnya dalam dashboard yang lebih jelas dan nyaman dilihat.
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold tracking-tight text-neutral-900">
+              Halo, {user.username}!
+            </h1>
+            <p className="mt-1 truncate text-sm text-neutral-500">
+              {hasData
+                ? "Lanjutkan belajarmu — buat quiz baru atau lihat skor terakhir."
+                : "Siap memulai? Ikuti langkah singkat di bawah."}
             </p>
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button onClick={() => navigate("/create")} className="btn-primary">
-                <Plus size={18} />
-                Buat Quiz Baru
-              </button>
-              <button onClick={() => navigate("/materials")} className="btn-secondary">
-                <FileText size={18} />
-                Lihat Materi
-              </button>
-            </div>
           </div>
-
-          <div className="glass-panel p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Sorotan cepat</p>
-            <div className="mt-4 space-y-3">
-              <HighlightRow
-                title="Mode latihan"
-                value={hasData ? "Siap digunakan" : "Belum ada quiz"}
-                tone={hasData ? "success" : "warning"}
-              />
-              <HighlightRow
-                title="Total aktivitas"
-                value={hasData ? `${stats!.totalQuizzes} quiz tersimpan` : "Mulai dari dashboard"}
-                tone="primary"
-              />
-              <HighlightRow
-                title="Rata-rata nilai"
-                value={hasData ? `${stats!.averageScore}%` : "Belum tersedia"}
-                tone="accent"
-              />
-            </div>
-          </div>
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 to-primary-500 text-sm font-bold text-white shadow-glow transition duration-300 hover:-translate-y-0.5"
+          >
+            {user.avatar_url ? (
+              <img src={user.avatar_url} alt={user.username} className="h-full w-full object-cover" />
+            ) : (
+              user.username.charAt(0).toUpperCase()
+            )}
+          </button>
         </div>
-      </section>
 
-      {hasData ? (
-        <>
-          <p className="section-title">Ringkasan performa</p>
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard icon={<ClipboardList size={20} />} label="Total Quiz" value={stats!.totalQuizzes} />
-            <StatCard icon={<Target size={20} />} label="Rata-rata Nilai" value={`${stats!.averageScore}%`} color="accent" />
-            <StatCard icon={<FileText size={20} />} label="Total Soal" value={stats!.totalQuestions} color="success" />
-            <StatCard icon={<CheckCircle2 size={20} />} label="Jawaban Benar" value={stats!.correctAnswers} color="warning" />
-          </div>
-
-          {stats!.recentScores.length > 1 && (
-            <section className="card-elevated mb-6 p-5 sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div>
-                  <p className="section-title !mb-1">Perkembangan nilai</p>
-                  <h3 className="text-lg font-bold tracking-tight text-neutral-800">Performa quiz terbaru</h3>
+        {hasData ? (
+          <>
+            {/* Sorotan: quiz terakhir + aksi utama */}
+            <section className="card-elevated relative mb-6 overflow-hidden p-5 sm:p-6">
+              <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-primary-200/40 blur-3xl" />
+              <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div
+                    className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] ring-1 ${
+                      latest!.score >= 75
+                        ? "bg-success-50 text-success-600 ring-success-100"
+                        : latest!.score >= 60
+                          ? "bg-warning-50 text-warning-600 ring-warning-100"
+                          : "bg-error-50 text-error-600 ring-error-100"
+                    }`}
+                  >
+                    <span className="text-xl font-bold">{latest!.score}%</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-400">
+                      Quiz terakhir
+                    </p>
+                    <p className="mt-0.5 truncate text-base font-bold tracking-tight text-neutral-800">
+                      {latest!.materialName}
+                    </p>
+                    <p className="mt-0.5 truncate text-sm text-neutral-500">
+                      {latest!.correctAnswers}/{latest!.totalQuestions} benar · {formatDate(latest!.createdAt)}
+                    </p>
+                  </div>
                 </div>
-                <div className="badge-soft">
-                  <BarChart3 size={14} />
-                  {stats!.recentScores.length} data
+
+                <div className="flex w-full shrink-0 flex-col gap-2.5 sm:w-auto sm:flex-row sm:items-center">
+                  <button
+                    onClick={() => navigate("/history")}
+                    className="btn-secondary flex-1 !px-5 !py-3 sm:flex-none"
+                  >
+                    <History size={16} />
+                    Riwayat
+                  </button>
+                  <button
+                    onClick={() => navigate("/create")}
+                    className="btn-primary flex-1 !px-5 !py-3 sm:flex-none"
+                  >
+                    <Plus size={16} />
+                    Buat Quiz Baru
+                  </button>
                 </div>
               </div>
-              <ScoreChart scores={stats!.recentScores} />
             </section>
-          )}
-        </>
-      ) : (
-        <div className="card-elevated mb-6">
-          <EmptyState
-            icon={<ClipboardList size={28} />}
-            title="Belum ada riwayat quiz"
-            description="Upload materi pertamamu dan mulai sesi latihan agar dashboard ini terisi statistik yang lebih menarik."
-            action={
-              <button onClick={() => navigate("/create")} className="btn-primary">
-                <Plus size={18} /> Buat Quiz
-              </button>
-            }
-          />
-        </div>
-      )}
 
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="section-title !mb-0">Aksi cepat</p>
-          <span className="text-xs font-medium text-neutral-400">Pilih menu untuk lanjut</span>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <QuickLink
-            icon={<Plus />}
-            label="Buat Quiz"
-            description="Upload materi baru dan mulai generate soal."
-            onClick={() => navigate("/create")}
-          />
-          <QuickLink
-            icon={<FileText />}
-            label="Materi Saya"
-            description="Kelola file belajar yang sudah Anda simpan."
-            onClick={() => navigate("/materials")}
-          />
-          <QuickLink
-            icon={<History />}
-            label="History"
-            description="Lihat sesi quiz yang pernah dikerjakan."
-            onClick={() => navigate("/history")}
-          />
-          <QuickLink
-            icon={<BarChart3 />}
-            label="Statistik"
-            description="Pantau progres dan hasil belajar terbaru."
-            onClick={() => navigate("/statistics")}
-          />
-        </div>
-      </section>
-    </div>
+            {/* Ringkasan performa */}
+            <p className="section-title">Ringkasan performa</p>
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard icon={<ClipboardList size={20} />} label="Total Quiz" value={totalQuizzes} />
+              <StatCard icon={<Target size={20} />} label="Rata-rata Nilai" value={`${averageScore}%`} color="accent" />
+              <StatCard icon={<FileText size={20} />} label="Total Soal" value={totalQuestions} color="success" />
+              <StatCard icon={<CheckCircle2 size={20} />} label="Jawaban Benar" value={correctAnswers} color="warning" />
+            </div>
+
+            {/* Perkembangan nilai */}
+            {hasChart && (
+              <section className="card-elevated p-5 sm:p-6">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="section-title !mb-1">Perkembangan nilai</p>
+                    <h3 className="text-lg font-bold tracking-tight text-neutral-800">Performa quiz terbaru</h3>
+                  </div>
+                  <div className="badge-soft">
+                    <BarChart3 size={14} />
+                    {recentScores.length} data
+                  </div>
+                </div>
+                <ScoreChart scores={recentScores} />
+              </section>
+            )}
+          </>
+        ) : (
+          <StartGuide onCreate={() => navigate("/create")} />
+        )}
+      </div>
     </>
   );
 }
 
-function QuickLink({
-  icon,
-  label,
-  description,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="card card-hover group flex h-full flex-col items-start gap-4 p-5 text-left active:scale-[0.98]"
-    >
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-50 to-white text-primary-600 ring-1 ring-primary-100 transition duration-300 group-hover:scale-105">
-        {icon}
-      </div>
-      <div>
-        <p className="text-base font-semibold tracking-tight text-neutral-800">{label}</p>
-        <p className="mt-1 text-sm leading-6 text-neutral-500">{description}</p>
-      </div>
-      <div className="mt-auto inline-flex items-center gap-2 text-sm font-semibold text-primary-700">
-        Buka menu
-        <ArrowRight size={16} />
-      </div>
-    </button>
-  );
-}
-
-function HighlightRow({
-  title,
-  value,
-  tone,
-}: {
-  title: string;
-  value: string;
-  tone: "primary" | "success" | "warning" | "accent";
-}) {
-  const toneMap = {
-    primary: "bg-primary-500",
-    success: "bg-success-500",
-    warning: "bg-warning-500",
-    accent: "bg-accent-500",
-  };
+/** Panduan ringkas untuk pengguna baru — fokus pada satu aksi utama */
+function StartGuide({ onCreate }: { onCreate: () => void }) {
+  const steps = [
+    { num: 1, title: "Upload materi", desc: "Pilih file PDF atau DOCX" },
+    { num: 2, title: "Atur quiz", desc: "Jumlah soal & tingkat kesulitan" },
+    { num: 3, title: "Mainkan & pantau", desc: "Skor masuk ke Statistik" },
+  ];
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/75 px-4 py-3 shadow-soft">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${toneMap[tone]}`} />
-        <span className="truncate text-sm font-medium text-neutral-500">{title}</span>
+    <section className="card-elevated relative overflow-hidden p-6 sm:p-8">
+      <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary-200/40 blur-3xl" />
+      <div className="absolute -bottom-10 -left-8 h-36 w-36 rounded-full bg-accent-200/40 blur-3xl" />
+      <div className="relative z-10">
+        <div className="max-w-xl">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl">
+            Mulai dari materi pertamamu
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-neutral-600 sm:text-base">
+            Unggah materi belajar, lalu ubah menjadi quiz latihan interaktif secara otomatis.
+          </p>
+          <button onClick={onCreate} className="btn-primary mt-5 w-full sm:w-auto">
+            <Upload size={18} />
+            Upload Materi &amp; Buat Quiz
+          </button>
+        </div>
+
+        <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          {steps.map((s) => (
+            <div key={s.num} className="glass-panel flex items-center gap-3.5 p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-500 text-sm font-bold text-white shadow-glow">
+                {s.num}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-neutral-800">{s.title}</p>
+                <p className="mt-0.5 truncate text-xs leading-5 text-neutral-500">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <span className="text-sm font-semibold text-neutral-800">{value}</span>
-    </div>
+    </section>
   );
 }
 
 function ScoreChart({ scores }: { scores: { label: string; score: number }[] }) {
   const max = 100;
+  const best = Math.max(...scores.map((s) => s.score));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-      <div className="rounded-3xl bg-gradient-to-b from-neutral-50 to-white p-4">
-        <div className="flex h-44 items-end justify-between gap-2">
-          {scores.map((s, i) => {
-            const h = Math.max(10, (s.score / max) * 100);
-            const color = s.score >= 75
-              ? "from-success-400 to-success-600"
-              : s.score >= 60
-                ? "from-warning-400 to-warning-500"
-                : "from-error-400 to-error-600";
+    <div className="rounded-3xl bg-gradient-to-b from-neutral-50 to-white p-4">
+      <div className="flex h-44 items-end justify-between gap-2">
+        {scores.map((s, i) => {
+          const h = Math.max(10, (s.score / max) * 100);
+          const color = s.score >= 75
+            ? "from-success-400 to-success-600"
+            : s.score >= 60
+              ? "from-warning-400 to-warning-500"
+              : "from-error-400 to-error-600";
 
-            return (
-              <div key={i} className="flex flex-1 flex-col items-center gap-2">
-                <span className="text-xs font-semibold text-neutral-600">{s.score}</span>
-                <div className="flex w-full items-end justify-center rounded-2xl bg-white/80 px-2 pb-2 pt-4 shadow-soft" style={{ height: "132px" }}>
-                  <div
-                    className={`w-full max-w-[38px] rounded-2xl bg-gradient-to-t ${color} transition-all duration-500`}
-                    style={{ height: `${h}%` }}
-                  />
-                </div>
-                <span className="w-full truncate text-center text-[10px] font-medium text-neutral-400">{s.label}</span>
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center gap-2">
+              <span className="text-xs font-semibold text-neutral-600">{s.score}</span>
+              <div className="flex w-full items-end justify-center rounded-2xl bg-white/80 px-2 pb-2 pt-4 shadow-soft" style={{ height: "132px" }}>
+                <div
+                  className={`w-full max-w-[38px] rounded-2xl bg-gradient-to-t ${color} transition-all duration-500`}
+                  style={{ height: `${h}%` }}
+                />
               </div>
-            );
-          })}
-        </div>
+              <span className="w-full truncate text-center text-[10px] font-medium text-neutral-400">{s.label}</span>
+            </div>
+          );
+        })}
       </div>
-
-      <div className="glass-panel p-5">
-        <p className="text-sm font-semibold text-neutral-700">Insight singkat</p>
-        <p className="mt-2 text-sm leading-6 text-neutral-500">
-          Nilai terbaru membantu Anda melihat apakah pola belajar mulai stabil atau masih perlu penyesuaian.
-        </p>
-        <div className="mt-5 rounded-2xl bg-white/80 p-4 shadow-soft">
-          <p className="text-xs uppercase tracking-[0.18em] text-neutral-400">Nilai terbaik</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900">
-            {Math.max(...scores.map((item) => item.score))}%
-          </p>
-        </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200/60 pt-3 text-[11px] text-neutral-400">
+        <span>
+          <span className="font-semibold text-success-600">≥75</span> hijau ·{" "}
+          <span className="font-semibold text-warning-600">60–74</span> kuning ·{" "}
+          <span className="font-semibold text-error-600">&lt;60</span> merah
+        </span>
+        <span className="font-semibold text-neutral-500">Nilai terbaik: {best}%</span>
       </div>
     </div>
   );
 }
-

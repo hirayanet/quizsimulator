@@ -66,6 +66,12 @@ function removeOverlay() {
   document.getElementById(OVERLAY_ID)?.remove();
 }
 
+/** Perbarui hanya baris subtitle overlay (dipakai untuk progres detail halaman) */
+function updateOverlaySubtitle(subtitle: string) {
+  const el = document.getElementById(`${OVERLAY_ID}_subtitle`);
+  if (el) el.textContent = subtitle;
+}
+
 // Peta stepId_status → [title, subtitle] untuk update overlay
 const STEP_OVERLAY_TEXT: Record<string, [string, string]> = {
   "read_active":    ["Membaca Materi…",      "Mengekstrak teks dari file Anda"],
@@ -84,6 +90,7 @@ export default function CreateQuiz() {
   const [processing, setProcessing] = useState(false);
   const [steps, setSteps] = useState<ProcessStep[]>(initialProcessSteps);
   const [progress, setProgress] = useState(0);
+  const [detail, setDetail] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
 
@@ -144,12 +151,21 @@ export default function CreateQuiz() {
     setProcessing(true);
     setSteps(initialProcessSteps.map((s) => ({ ...s, status: "pending" })));
     setProgress(10);
+    setDetail(null);
     setStartedAt(Date.now());
     setEtaSeconds(null);
 
     try {
-      const text = await extractTextFromFile(f, updateStep);
+      const text = await extractTextFromFile(
+        f,
+        updateStep,
+        (msg) => {
+          setDetail(msg);
+          updateOverlaySubtitle(msg);
+        },
+      );
       setProgress(70);
+      setDetail(null);
 
       if (!user) {
         removeOverlay();
@@ -303,6 +319,13 @@ export default function CreateQuiz() {
               </div>
             </div>
 
+            {/* Detail progres (misal: halaman ke berapa) */}
+            {processing && detail && (
+              <p className="-mt-2 truncate text-center text-xs font-medium text-neutral-400">
+                {detail}
+              </p>
+            )}
+
             {/* Processing steps */}
             {processing && (
               <div className="space-y-2.5 border-t border-neutral-100 pt-4">
@@ -330,7 +353,7 @@ export default function CreateQuiz() {
             {/* Cancel button */}
             {processing && (
               <button
-                onClick={() => { removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); }}
+                onClick={() => { removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); setDetail(null); }}
                 className="btn-ghost w-full"
               >
                 Batal

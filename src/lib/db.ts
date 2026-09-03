@@ -307,12 +307,23 @@ export async function deleteQuiz(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export interface LatestQuizSummary {
+  id: string;
+  score: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  createdAt: string;
+  materialName: string;
+}
+
 export interface UserStats {
   totalQuizzes: number;
   averageScore: number;
   totalQuestions: number;
   correctAnswers: number;
   recentScores: { label: string; score: number }[];
+  /** Quiz yang paling baru dikerjakan (untuk sorotan di dashboard) */
+  latestQuiz: LatestQuizSummary | null;
 }
 
 export async function getUserStats(userId: string): Promise<UserStats> {
@@ -336,5 +347,28 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     score: q.score,
   }));
 
-  return { totalQuizzes, averageScore, totalQuestions, correctAnswers, recentScores };
+  // getQuizzesByUser menyertakan relasi materials(filename)
+  const first = quizzes[0];
+  const latestRaw = first as (Quiz & {
+    materials?: { filename: string } | null;
+  }) | undefined;
+  const latestQuiz: LatestQuizSummary | null = latestRaw
+    ? {
+        id: latestRaw.id,
+        score: latestRaw.score,
+        correctAnswers: latestRaw.correct_answers,
+        totalQuestions: latestRaw.total_questions,
+        createdAt: latestRaw.created_at,
+        materialName: latestRaw.materials?.filename || latestRaw.title || "Quiz",
+      }
+    : null;
+
+  return {
+    totalQuizzes,
+    averageScore,
+    totalQuestions,
+    correctAnswers,
+    recentScores,
+    latestQuiz,
+  };
 }

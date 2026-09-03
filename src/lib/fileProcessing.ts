@@ -13,9 +13,21 @@ export const initialProcessSteps: ProcessStep[] = [
   { id: "prepare", label: "Menyiapkan quiz", status: "pending" },
 ];
 
+/** Callback progres detail (misal: "Membaca halaman 12 dari 40…") */
+export type DetailCallback = (message: string) => void;
+
+/**
+ * Batas teks hasil ekstraksi yang disimpan:
+ * - Generator AI hanya membaca ±12–15 ribu karakter awal materi.
+ * - Fallback berbasis kalimat tidak membutuhkan ratusan ribu karakter.
+ * Membatasi teks mencegah dokumen raksasa memperlambat penyimpanan ke DB.
+ */
+export const MAX_EXTRACTED_CHARS = 400_000;
+
 export async function extractTextFromFile(
   file: File,
   onProgress?: (stepId: string, status: ProcessStep["status"]) => void,
+  onDetail?: DetailCallback,
 ): Promise<string> {
   const kind = getFileKind(file);
 
@@ -26,7 +38,7 @@ export async function extractTextFromFile(
 
   try {
     if (kind === "pdf") {
-      text = await extractPdfText(file);
+      text = await extractPdfText(file, onDetail);
     } else if (kind === "docx" || kind === "doc") {
       text = await extractDocxText(file);
     } else if (kind === "audio" || kind === "video") {
@@ -45,13 +57,15 @@ export async function extractTextFromFile(
     );
   }
 
+  const limited = limitExtractedText(text);
+
   onProgress?.("read", "done");
   onProgress?.("analyze", "active");
   await delay(600);
   onProgress?.("analyze", "done");
   onProgress?.("prepare", "active");
 
-  return text.trim();
+  return limited;
 }
 
 interface OcrWorkerLike {
@@ -59,65 +73,169 @@ interface OcrWorkerLike {
   terminate: () => Promise<unknown>;
 }
 
-async function extractPdfText(file: File): Promise<string> {
+/**
+ * Jalankan tugas berindeks 0..count-1 dengan maksimal `concurrency` tugas
+ * berjalan bersamaan. Hasil disimpan sesuai urutan indeks aslinya.
+ */
+async function mapConcurrent<T>(
+  count: number,
+  concurrency: number,
+  worker: (index: number) => Promise<T>,
+): Promise<T[]> {
+  const results: T[] = new Array(count);
+  let next = 0;
+  const limit = Math.max(1, Math.min(concurrency, count));
+
+  await Promise.all(
+    Array.from({ length: limit }, async () => {
+      while (next < count) {
+        const i = next++;
+        results[i] = await worker(i);
+      }
+    }),
+  );
+
+  return results;
+}
+
+/**
+ * Jumlah halaman PDF yang boleh diproses bersamaan.
+ * Dibatasi kecil: tiap halaman memakai memori & antrean worker PDF.js,
+ * terlalu banyak justru memperlambat di perangkat mobile.
+ */
+function getConcurrency(): number {
+  if (typeof navigator === "undefined") return 2;
+  const hw = navigator.hardwareConcurrency || 4;
+  return Math.min(3, Math.max(1, hw - 1));
+}
+
+const MIN_TEXT_CHARS = 20;
+
+/**
+ * Skala render halaman scan untuk OCR. Sebelumnya 2.0 (4× luas piksel vs 1.0);
+ * 1.6 cukup akurat untuk teks cetak namun ~36% lebih cepat & hemat memori.
+ */
+const OCR_SCALE = 1.6;
+
+async function extractPdfText(file: File, onDetail?: DetailCallback): Promise<string> {
   const pdfjs = await import("pdfjs-dist");
   // Gunakan CDN untuk worker agar tidak gagal diload pada perangkat mobile (iOS/Android Safari)
   pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+  const numPages = pdf.numPages;
 
-  // OCR dijalankan lazy — hanya jika ada halaman tanpa text layer (hasil scan)
-  let ocrWorker: OcrWorkerLike | null = null;
-  const ensureOcrWorker = async (): Promise<OcrWorkerLike | null> => {
-    if (ocrWorker) return ocrWorker;
-    try {
-      const { createWorker } = await import("tesseract.js");
-      ocrWorker = (await createWorker("ind")) as unknown as OcrWorkerLike;
-      return ocrWorker;
-    } catch {
-      return null;
-    }
-  };
+  const pageTexts: string[] = new Array(numPages);
+  const scannedPages: number[] = [];
+  let processed = 0;
 
   try {
-    let text = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items
-        .map((item: unknown) => (item as { str?: string }).str || "")
-        .join(" ");
+    // ── Pass 1: ambil text-layer SEMUA halaman secara paralel (tanpa render) ──
+    // Dokumen teks besar tidak lagi diproses halaman demi halaman berurutan,
+    // sehingga waktu baca berkurang drastis (tergantung jumlah inti CPU).
+    onDetail?.(numPages > 1 ? `Membaca halaman 0 dari ${numPages}…` : "Membaca halaman…");
 
-      if (pageText.replace(/\s+/g, "").length > 20) {
-        text += pageText + "\n";
-        continue;
+    await mapConcurrent(numPages, getConcurrency(), async (i) => {
+      const page = await pdf.getPage(i + 1);
+      let pageText = "";
+      try {
+        const content = await page.getTextContent();
+        pageText = content.items
+          .map((item: unknown) => (item as { str?: string }).str || "")
+          .join(" ");
+      } finally {
+        try {
+          page.cleanup();
+        } catch {
+          /* abaikan */
+        }
       }
 
-      // Halaman nyaris tanpa teks → kemungkinan hasil scan, jalankan OCR
-      const worker = await ensureOcrWorker();
-      if (!worker) {
-        text += pageText + "\n";
-        continue;
+      if (pageText.replace(/\s+/g, "").length > MIN_TEXT_CHARS) {
+        pageTexts[i] = pageText;
+      } else {
+        // Halaman nyaris tanpa teks → kemungkinan hasil scan, tandai untuk OCR
+        scannedPages.push(i);
       }
 
-      const viewport = page.getViewport({ scale: 2 });
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        text += pageText + "\n";
-        continue;
+      processed++;
+      if (numPages > 1 && (processed % 5 === 0 || processed === numPages)) {
+        onDetail?.(`Membaca halaman ${processed} dari ${numPages}…`);
       }
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      const { data } = await worker.recognize(canvas);
-      text += (data.text || "") + "\n";
+    });
+
+    // ── Pass 2: OCR halaman scan (berurutan, worker tunggal agar hemat memori) ──
+    if (scannedPages.length > 0) {
+      scannedPages.sort((a, b) => a - b);
+
+      onDetail?.(
+        `Ditemukan ${scannedPages.length} halaman gambar/scan — menyiapkan pengenalan teks…`,
+      );
+
+      // OCR dijalankan lazy — hanya jika ada halaman tanpa text layer (hasil scan)
+      let ocrWorker: OcrWorkerLike | null = null;
+      const ensureOcrWorker = async (): Promise<OcrWorkerLike | null> => {
+        if (ocrWorker) return ocrWorker;
+        try {
+          onDetail?.("Menyiapkan pengenalan teks (unduh model bahasa, sekali saja)…");
+          const { createWorker } = await import("tesseract.js");
+          ocrWorker = (await createWorker("ind")) as unknown as OcrWorkerLike;
+          return ocrWorker;
+        } catch {
+          return null;
+        }
+      };
+
+      let ocrDone = 0;
+      try {
+        for (const i of scannedPages) {
+          const worker = await ensureOcrWorker();
+          if (!worker) break;
+
+          try {
+            onDetail?.(
+              `Mengenali teks halaman ${ocrDone + 1} dari ${scannedPages.length} (gambar/scan)…`,
+            );
+            const page = await pdf.getPage(i + 1);
+
+            // Batasi resolusi kanvas agar halaman raksasa tidak boros memori
+            const baseViewport = page.getViewport({ scale: 1 });
+            const safeScale = Math.max(1, Math.min(OCR_SCALE, 1700 / baseViewport.width));
+            const viewport = page.getViewport({ scale: safeScale });
+
+            const canvas = document.createElement("canvas");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              await page.render({ canvasContext: ctx, viewport }).promise;
+              const { data } = await worker.recognize(canvas);
+              pageTexts[i] = (data.text || "") + "\n";
+            }
+            try {
+              page.cleanup();
+            } catch {
+              /* abaikan */
+            }
+          } catch {
+            // Satu halaman gagal (mis. terlalu besar) — lanjut ke halaman berikutnya
+          }
+          ocrDone++;
+        }
+      } finally {
+        // Cast diperlukan: TS tidak melacak assignment di dalam closure ensureOcrWorker
+        await (ocrWorker as OcrWorkerLike | null)?.terminate();
+      }
     }
-    return cleanExtractedText(text);
+
+    return cleanExtractedText(pageTexts.join("\n"));
   } finally {
-    const worker = ocrWorker as OcrWorkerLike | null;
-    await worker?.terminate();
+    try {
+      await pdf.destroy();
+    } catch {
+      /* abaikan */
+    }
   }
 }
 
@@ -139,6 +257,18 @@ async function extractMediaTranscript(file: File): Promise<string> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Potong teks sangat panjang di batas kata terakhir sebelum MAX_EXTRACTED_CHARS */
+function limitExtractedText(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= MAX_EXTRACTED_CHARS) return trimmed;
+
+  const cut = trimmed.slice(0, MAX_EXTRACTED_CHARS);
+  const lastSpace = cut.lastIndexOf(" ");
+  const base =
+    lastSpace > MAX_EXTRACTED_CHARS * 0.75 ? cut.slice(0, lastSpace) : cut;
+  return base.trim().replace(/[,;:.\s]+$/, "");
 }
 
 /**

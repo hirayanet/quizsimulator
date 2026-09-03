@@ -43,26 +43,31 @@ export default function History() {
       {/* Summary strip */}
       <section className="card-elevated relative mb-6 overflow-hidden p-5 sm:p-6">
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-200/40 blur-3xl" />
-        <div className="relative z-10 flex flex-wrap items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-glow">
-            <HistoryIcon size={24} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold tracking-tight text-neutral-900">Riwayat pembelajaran</h2>
-            <p className="mt-0.5 text-sm text-neutral-500">
-              Lihat kembali hasil quiz yang sudah kamu selesaikan.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <div className="glass-panel px-4 py-2.5 text-center">
-              <p className="text-lg font-bold text-neutral-800">{quizzes.length}</p>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Quiz</p>
+        <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+          {/* Ikon + teks pengantar: teks memakai sisa ruang agar tidak terjepit */}
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-glow">
+              <HistoryIcon size={24} />
             </div>
-            <div className="glass-panel px-4 py-2.5 text-center">
-              <p className={`text-lg font-bold ${avgScore >= 75 ? "text-success-600" : avgScore >= 60 ? "text-warning-600" : "text-error-600"}`}>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold tracking-tight text-neutral-900">Riwayat pembelajaran</h2>
+              <p className="mt-1 text-sm leading-6 text-neutral-500">
+                Lihat kembali hasil quiz yang sudah kamu selesaikan.
+              </p>
+            </div>
+          </div>
+
+          {/* Statistik: dua kolom penuh di mobile, menyamping di layar lebih lebar */}
+          <div className="grid shrink-0 grid-cols-2 gap-3">
+            <div className="glass-panel px-4 py-3 text-center">
+              <p className="text-lg font-bold leading-tight text-neutral-800">{quizzes.length}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Quiz</p>
+            </div>
+            <div className="glass-panel px-4 py-3 text-center">
+              <p className={`text-lg font-bold leading-tight ${avgScore >= 75 ? "text-success-600" : avgScore >= 60 ? "text-warning-600" : "text-error-600"}`}>
                 {avgScore}%
               </p>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Rata-rata</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Rata-rata</p>
             </div>
           </div>
         </div>
@@ -87,6 +92,7 @@ export default function History() {
             const pct = q.score;
             const scoreColor = pct >= 75 ? "text-success-600" : pct >= 60 ? "text-warning-600" : "text-error-600";
             const scoreBg = pct >= 75 ? "bg-success-50 ring-success-100" : pct >= 60 ? "bg-warning-50 ring-warning-100" : "bg-error-50 ring-error-100";
+            const materialTitle = q.materials?.filename || q.title;
 
             return (
               <button
@@ -98,8 +104,8 @@ export default function History() {
                   <span className="text-sm font-bold">{pct}%</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-neutral-800">
-                    {q.materials?.filename || q.title}
+                  <p className="truncate text-sm font-semibold text-neutral-800" title={materialTitle}>
+                    {materialTitle}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <MetaPill>{q.correct_answers}/{q.total_questions} benar</MetaPill>
