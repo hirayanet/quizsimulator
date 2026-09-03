@@ -79,24 +79,29 @@ export default function Materials() {
       {/* Summary strip */}
       <section className="card-elevated relative mb-6 overflow-hidden p-5 sm:p-6">
         <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary-200/40 blur-3xl" />
-        <div className="relative z-10 flex flex-wrap items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-glow">
-            <FolderOpen size={24} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold tracking-tight text-neutral-900">Perpustakaan materi</h2>
-            <p className="mt-0.5 text-sm text-neutral-500">
-              Kelola materi pembelajaran dan buat quiz baru kapan saja.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <div className="glass-panel px-4 py-2.5 text-center">
-              <p className="text-lg font-bold text-neutral-800">{materials.length}</p>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Materi</p>
+        <div className="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
+          {/* Icon + intro text: biarkan teks memakai sisa ruang agar tidak terjepit */}
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary-600 to-primary-500 text-white shadow-glow">
+              <FolderOpen size={24} />
             </div>
-            <div className="glass-panel px-4 py-2.5 text-center">
-              <p className="text-lg font-bold text-neutral-800">{totalQuizzes}</p>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Quiz</p>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-bold tracking-tight text-neutral-900">Perpustakaan materi</h2>
+              <p className="mt-1 text-sm leading-6 text-neutral-500">
+                Kelola materi pembelajaran dan buat quiz baru kapan saja.
+              </p>
+            </div>
+          </div>
+
+          {/* Statistik: dua kolom penuh di mobile, menyamping di layar lebih lebar */}
+          <div className="grid shrink-0 grid-cols-2 gap-3">
+            <div className="glass-panel px-4 py-3 text-center">
+              <p className="text-lg font-bold leading-tight text-neutral-800">{materials.length}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Materi</p>
+            </div>
+            <div className="glass-panel px-4 py-3 text-center">
+              <p className="text-lg font-bold leading-tight text-neutral-800">{totalQuizzes}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Quiz</p>
             </div>
           </div>
         </div>
@@ -130,7 +135,9 @@ export default function Materials() {
                   <FileText size={22} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-neutral-800">{m.filename}</p>
+                  <p className="truncate text-sm font-semibold text-neutral-800" title={m.filename}>
+                    {m.filename}
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <MetaPill>{m.file_type.toUpperCase()}</MetaPill>
                     <MetaPill>{formatFileSize(m.file_size)}</MetaPill>
@@ -142,7 +149,7 @@ export default function Materials() {
                     )}
                   </div>
                 </div>
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     onClick={() => setMenuOpen(menuOpen === m.id ? null : m.id)}
                     className="rounded-xl p-1.5 text-neutral-400 transition hover:bg-white hover:text-neutral-700 hover:shadow-soft"
