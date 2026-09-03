@@ -83,12 +83,12 @@ function getRecord<T>(key: string): Promise<T | undefined> {
   );
 }
 
-function clearStore(): Promise<void> {
+function deleteRecord(key: string): Promise<void> {
   return openDb().then(
     (db) =>
       new Promise((resolve) => {
         const tx = db.transaction(STORE, "readwrite");
-        tx.objectStore(STORE).clear();
+        tx.objectStore(STORE).delete(key);
         tx.oncomplete = () => {
           db.close();
           resolve();
@@ -140,7 +140,7 @@ export async function getPendingUpload(): Promise<PendingUpload | null> {
     const meta = await getRecord<PendingMeta>(META_KEY);
     if (!meta) return null;
     if (Date.now() - meta.startedAt > MAX_SESSION_AGE_MS) {
-      await clearStore();
+      await clearPendingUpload();
       return null;
     }
     const progress = await getRecord<PendingProgress>(PROGRESS_KEY);
@@ -154,11 +154,48 @@ export async function getPendingUpload(): Promise<PendingUpload | null> {
   }
 }
 
-/** Hapus sesi (sukses / dibatalkan / gagal). */
+/** Hapus SESI saja (sukses / dibatalkan / gagal) — cache ekstraksi tetap disimpan. */
 export async function clearPendingUpload(): Promise<void> {
   try {
-    await clearStore();
+    await deleteRecord(META_KEY);
+    await deleteRecord(PROGRESS_KEY);
   } catch {
     /* abaikan */
+  }
+}
+
+// ── Cache hasil ekstraksi ───────────────────────────────────────────────────
+// File yang sama (size + lastModified + name) diupload ulang → langsung pakai
+// teks hasil ekstraksi sebelumnya, tanpa membaca/OCR ulang.
+
+const CACHE_KEY = "extraction-cache";
+
+interface ExtractionCacheEntry {
+  signature: string;
+  text: string;
+  savedAt: number;
+}
+
+/** Simpan hasil ekstraksi (teks yang sudah dibatasi) untuk file terakhir yang berhasil. */
+export async function saveCachedExtraction(signature: string, text: string): Promise<void> {
+  try {
+    await putRecord(CACHE_KEY, {
+      signature,
+      text,
+      savedAt: Date.now(),
+    } satisfies ExtractionCacheEntry);
+  } catch (err) {
+    console.warn("[uploadSession] Gagal menyimpan cache ekstraksi:", err);
+  }
+}
+
+/** Ambil hasil ekstraksi tersimpan jika signature file cocok, else null. */
+export async function getCachedExtraction(signature: string): Promise<string | null> {
+  try {
+    const entry = await getRecord<ExtractionCacheEntry>(CACHE_KEY);
+    if (!entry || entry.signature !== signature) return null;
+    return entry.text;
+  } catch {
+    return null;
   }
 }

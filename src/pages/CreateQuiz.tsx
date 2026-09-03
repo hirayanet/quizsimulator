@@ -4,7 +4,7 @@ import { CheckCircle2, FileText, Loader2, RotateCcw, Upload, X } from "lucide-re
 import { useUser } from "../context/UserContext";
 import { createMaterial } from "../lib/db";
 import { extractTextFromFile, initialProcessSteps, type ExtractionCheckpoint, type ProcessStep } from "../lib/fileProcessing";
-import { beginPendingUpload, clearPendingUpload, getPendingUpload, savePendingProgress, type PendingUpload } from "../lib/uploadSession";
+import { beginPendingUpload, clearPendingUpload, getCachedExtraction, getPendingUpload, saveCachedExtraction, savePendingProgress, type PendingUpload } from "../lib/uploadSession";
 import { getFileKind, formatFileSize, isSupportedFile } from "../lib/utils";
 import PageHeader from "../components/PageHeader";
 import { useToastHelpers } from "../context/ToastContext";
@@ -73,6 +73,13 @@ function updateOverlaySubtitle(subtitle: string) {
   if (el) el.textContent = subtitle;
 }
 
+/** Deteksi error pembatalan (AbortError standar atau AbortException dari PDF.js) */
+function isAbortError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === "AbortError") return true;
+  const name = (err as { name?: string } | null)?.name;
+  return name === "AbortError" || name === "AbortException";
+}
+
 // Peta stepId_status → [title, subtitle] untuk update overlay
 // (hanya langkah yang benar-benar terjadi saat upload — tanpa langkah kosmetik palsu)
 const STEP_OVERLAY_TEXT: Record<string, [string, string]> = {
@@ -98,6 +105,8 @@ export default function CreateQuiz() {
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
   // Penanda bahwa proses dibatalkan / komponen di-unmount → jangan lanjut ke pembuatan materi
   const cancelledRef = useRef(false);
+  // Kontrol pembatalan ekstraksi file (AbortController) — benar-benar menghentikan proses
+  const abortRef = useRef<AbortController | null>(null);
 
   // Muat sesi upload yang terhenti (jika ada) saat halaman dibuka
   useEffect(() => {
@@ -108,9 +117,9 @@ export default function CreateQuiz() {
     return () => { cancelled = true; };
   }, []);
 
-  // Bersihkan overlay & tandai batal saat komponen unmount
+  // Bersihkan overlay, tandai batal, dan hentikan ekstraksi saat komponen unmount
   useEffect(() => {
-    return () => { removeOverlay(); cancelledRef.current = true; };
+    return () => { removeOverlay(); cancelledRef.current = true; abortRef.current?.abort(); };
   }, []);
 
   const updateStep = useCallback((stepId: string, status: ProcessStep["status"]) => {
@@ -161,6 +170,10 @@ export default function CreateQuiz() {
     }
 
     cancelledRef.current = false;
+    // Batalkan proses lama (jika masih berjalan) dan siapkan kontrol pembatalan baru
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     // Overlay sudah tampil dari input.onchange — perbarui ke teks proses awal
     createOrUpdateOverlay("Memuat File…", "Sedang menyiapkan file Anda");
@@ -178,20 +191,35 @@ export default function CreateQuiz() {
     // Simpan sesi SEBELUM ekstraksi — jika tab di-reload, user bisa melanjutkan
     await beginPendingUpload(f, kind);
 
+    // Cache hasil ekstraksi: file identik yang diupload ulang langsung lompat
+    // ke penyimpanan (tanpa membaca/OCR ulang). Signature = ukuran + tanggal + nama.
+    const cacheSignature = `${f.size}-${f.lastModified}-${f.name}`;
+    const cachedText = await getCachedExtraction(cacheSignature);
+
     try {
-      const text = await extractTextFromFile(
-        f,
-        updateStep,
-        (msg) => {
-          setDetail(msg);
-          updateOverlaySubtitle(msg);
-        },
-        // Simpan progres per halaman ke IndexedDB agar bisa dilanjutkan
-        (cp, totalPages) => {
-          savePendingProgress(cp.savedPages, cp.scannedPages, totalPages);
-        },
-        checkpoint,
-      );
+      let text: string;
+      if (cachedText !== null) {
+        // File pernah diekstrak sebelumnya — pakai hasilnya, tanpa proses ulang
+        updateStep("read", "done");
+        text = cachedText;
+      } else {
+        text = await extractTextFromFile(
+          f,
+          updateStep,
+          (msg) => {
+            setDetail(msg);
+            updateOverlaySubtitle(msg);
+          },
+          // Simpan progres per halaman ke IndexedDB agar bisa dilanjutkan
+          (cp, totalPages) => {
+            savePendingProgress(cp.savedPages, cp.scannedPages, totalPages);
+          },
+          checkpoint,
+          controller.signal,
+        );
+        // Simpan ke cache agar upload ulang file yang sama menjadi instan
+        saveCachedExtraction(cacheSignature, text);
+      }
       if (cancelledRef.current) return;
       setProgress(70);
       setDetail(null);
@@ -227,6 +255,17 @@ export default function CreateQuiz() {
         navigate(`/quiz/config/${material.id}`);
       }, 900);
     } catch (err) {
+      // Jika dibatalkan pengguna (tombol Batal / keluar halaman): bersihkan tanpa toast error
+      if (cancelledRef.current || isAbortError(err)) {
+        await clearPendingUpload();
+        removeOverlay();
+        setFile(null);
+        setProcessing(false);
+        setProgress(0);
+        setSteps(initialProcessSteps);
+        setDetail(null);
+        return;
+      }
       await clearPendingUpload();
       removeOverlay();
       const msg = err instanceof Error ? err.message : "Gagal memproses file.";
@@ -245,6 +284,7 @@ export default function CreateQuiz() {
   }, [handleFile]);
 
   const removeFile = () => {
+    abortRef.current?.abort();
     cancelledRef.current = true;
     clearPendingUpload();
     setFile(null);
@@ -253,6 +293,7 @@ export default function CreateQuiz() {
   };
 
   const discardPendingUpload = () => {
+    abortRef.current?.abort();
     cancelledRef.current = true;
     clearPendingUpload();
     setPendingUpload(null);
@@ -441,7 +482,7 @@ export default function CreateQuiz() {
             {/* Cancel button */}
             {processing && (
               <button
-                onClick={() => { cancelledRef.current = true; clearPendingUpload(); removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); setDetail(null); }}
+                onClick={() => { abortRef.current?.abort(); cancelledRef.current = true; clearPendingUpload(); removeOverlay(); setProcessing(false); setFile(null); setProgress(0); setSteps(initialProcessSteps); setDetail(null); }}
                 className="btn-ghost w-full"
               >
                 Batal
